@@ -1,0 +1,52 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VALVER · Control Z</title><style>
+*{box-sizing:border-box}body{margin:0;background:#091522;color:#edf5ff;font:13px Arial,sans-serif}
+main{width:800px;min-height:480px;max-width:100%;margin:14px auto;background:#112033;border:1px solid #324860;border-radius:10px;overflow:hidden}
+header{height:52px;background:#071727;display:flex;align-items:center;padding:8px 15px;gap:13px}
+h1{font-size:27px;margin:0}header small{font-size:10px;line-height:1.5;color:#a9c3dc}header .divider{height:30px;border-left:2px solid #268cdd}
+#state{margin-left:auto;font-size:12px;color:#ffb1b9;text-align:right;max-width:155px}
+.layout{display:grid;grid-template-columns:108px minmax(0,1fr);gap:10px;padding:8px}
+nav{background:#1c2c40;border-radius:10px;min-height:390px;padding:6px;display:flex;flex-direction:column;gap:6px}
+button{background:#26435d;color:#eaf5ff;border:1px solid #42627d;border-radius:7px;padding:8px 5px;cursor:pointer;font-weight:bold;font-size:11px}
+button:disabled{opacity:.35;cursor:not-allowed}button:not(:disabled):hover{background:#356889}
+nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286}
+.safe{font-size:9px;text-align:center;color:#f5aab5;background:#4c2938;border-radius:7px;margin-top:auto;padding:10px 4px}
+.workspace{min-width:0}.topline{display:flex;gap:7px;align-items:center;margin-bottom:9px;flex-wrap:wrap}
+.topline button{padding:8px 9px}.state-pill{padding:7px 9px;background:#27445c;border-radius:6px;font-size:10px}
+.channels{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#1b3047;border:2px solid #355670;border-radius:12px;padding:10px;min-width:0;height:225px}
+.card.selected{border-color:#5de1b0;box-shadow:inset 0 0 0 1px #a1f5d4}
+.card.locked{opacity:.53}h2{font-size:19px;margin:2px 0 5px}
+.muted{font-size:10px;color:#a8c0d6}.row{display:flex;gap:6px;margin-top:7px}
+.row button{flex:1;min-width:0}.choose{width:100%;background:#214a6c;margin-top:10px}
+.card.selected .choose{background:#176d5c}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.panel{background:#1b3047;border-radius:9px;padding:11px;min-height:81px}
+.panel h3{font-size:12px;margin:0 0 5px}.panel p{font-size:10px;color:#acc0d5;margin:3px 0}
+.panel button{width:100%;margin-top:4px}.toolbar{display:flex;gap:7px;align-items:center;margin:8px 0}
+.toolbar button{padding:8px 10px}.stop{background:#862f48}.arm{background:#196e55}
+#confirmLine{display:block;font-size:10px;margin:5px 0;color:#e4bf8a}
+#log{height:67px;background:#071624;color:#a7efcf;overflow:auto;font:10px/1.3 Consolas,monospace;white-space:pre-wrap;padding:6px;border-radius:5px;margin:5px 0 0}
+#last{font-size:10px;color:#acd6e7} .details{display:none;padding:20px;background:#1b3047;border-radius:10px;min-height:298px}
+.details h2{font-size:20px}.details p{line-height:1.6;color:#adc5d9}
+@media(max-width:650px){main{width:800px;min-width:650px}body{overflow-x:auto}}
+</style></head><body><main>
+<header><h1>VALVER</h1><div class="divider"></div><small>SMART DISPENSER<br>CALIBRACIÓN Z · HMI PC</small><strong id="state">DESCONECTADO</strong></header>
+<div class="layout"><nav>
+<button class="nav active" data-page="home">INICIO</button><button class="nav" data-page="tip">PUNTA Z</button>
+<button class="nav" data-page="table">MESA Z</button><button class="nav" data-page="test">PRUEBA Z</button>
+<button class="nav" data-page="diag">DIAGN.</button><button class="nav" data-page="settings">AJUSTES</button>
+<div class="safe">MOTORES<br>DESHABILITADOS</div>
+</nav><div class="workspace">
+<div class="topline"><button id="connect">Conectar COM</button><button id="disconnect" disabled>Desconectar</button><button id="ping" disabled>PING</button><button id="info" disabled>INFO</button><button id="status" disabled>Estado</button><button id="sensors" disabled>Sensores</button><span class="state-pill" id="channelState">NINGUNO</span></div>
+<div id="homePage">
+<div class="channels">
+<section id="card1" class="card locked"><h2>Z1 · Conductivo</h2><span class="muted">Aguja adhesivo conductivo</span><p class="muted">STEP GPIO4 · DIR GPIO5 · EN GPIO6</p><button id="choose1" class="choose" disabled>Seleccionar Z1</button><div class="row"><button class="test" data-cmd="TEST_Z1_UP" disabled>▲ Subir</button><button class="test" data-cmd="TEST_Z1_DOWN" disabled>▼ Bajar</button></div><p class="muted">Reposo: pendiente · Dispensación: pendiente</p><p class="muted">Punta / mesa: sin calibrar</p></section>
+<section id="card2" class="card locked"><h2>Z2 · Estructural</h2><span class="muted">Aguja adhesivo estructural</span><p class="muted">STEP GPIO7 · DIR GPIO15 · EN GPIO16</p><button id="choose2" class="choose" disabled>Seleccionar Z2</button><div class="row"><button class="test" data-cmd="TEST_Z2_UP" disabled>▲ Subir</button><button class="test" data-cmd="TEST_Z2_DOWN" disabled>▼ Bajar</button></div><p class="muted">Reposo: pendiente · Dispensación: pendiente</p><p class="muted">Punta / mesa: sin calibrar</p></section>
+</div><div class="actions"><div class="panel"><h3>CALIBRACIÓN DE PUNTA</h3><p>Referencia individual del sensor óptico</p><button data-page="tip">Ver calibración</button></div><div class="panel"><h3>ALTURA DE MESA</h3><p>Detección física pendiente de validar</p><button data-page="table">Ver calibración</button></div></div>
+</div>
+<div id="detailPage" class="details"><h2 id="detailTitle">Calibración</h2><p id="detailText">Funciones físicas pendientes.</p><p>Canal: <b id="detailChannel">Ninguno</b></p><p id="sensorReadout">Sensor óptico: sin validar · StallGuard4: sin validar</p><p><strong>Calibrar punta / mesa y movimiento sostenido:</strong> bloqueados hasta confirmar cableado, límites de carrera, corriente y UART.</p><button data-page="home">Volver a control Z</button></div>
+<label id="confirmLine"><input type="checkbox" id="confirm"> VM y motores desconectados; cableado revisado · Solo pruebas GPIO</label>
+<div class="toolbar"><button id="arm" class="arm" disabled>Habilitar UNA prueba</button><button id="disarm" disabled>Deshabilitar</button><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
+<div class="muted">Estado: <span id="armState">BLOQUEADO</span> · <span id="last">Sin respuesta del controlador</span></div>
+<pre id="log" aria-live="polite">HMI local. Conecta USB, prueba PING y consulta Estado.</pre>
+</div></div></main><script src="serial.js"></script></body></html>
