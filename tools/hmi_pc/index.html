@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VALVER · HMI PC</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#08121e;color:#e8f3ff;font-family:Arial,sans-serif}
+main{width:min(800px,100%);min-height:480px;margin:20px auto;background:#101f30;border:1px solid #344d65;border-radius:12px;padding:20px}
+header{display:flex;justify-content:space-between;align-items:center}h1{margin:0;font-size:28px}small{color:#9db5c9}
+button{background:#285e85;color:#fff;border:1px solid #477da4;border-radius:8px;padding:11px;margin:5px 2px;cursor:pointer}
+button:disabled{opacity:.4;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:15px 0}
+.card{background:#1b3046;border:2px solid #35516d;padding:16px;border-radius:10px;cursor:pointer}.card.selected{border-color:#50e2ac;box-shadow:inset 0 0 0 2px #245c4a}
+pre{height:120px;overflow:auto;background:#071522;border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap}
+.state{color:#f5b4b4}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style></head><body><main>
+<header><div><h1>VALVER</h1><small>SMART DISPENSER · HMI PC 800 × 480</small></div><strong id="state" class="state">DESCONECTADO</strong></header>
+<p><button id="connect">Conectar ESP32 (COM)</button><button id="disconnect" disabled>Desconectar</button>
+<button id="ping" disabled>Probar PING</button><button id="info" disabled>Información</button><button id="status" disabled>Estado</button></p>
+<div class="grid">
+<section class="card selected" id="z1" tabindex="0"><h2>Z1 · Conductivo</h2><p>Seleccionar Z1</p><small>Calibración de punta y mesa: pendiente de validar.</small><p><button disabled>Subir</button><button disabled>Bajar</button></p></section>
+<section class="card" id="z2" tabindex="0"><h2>Z2 · Estructural</h2><p>Seleccionar Z2</p><small>Calibración de punta y mesa: pendiente de validar.</small><p><button disabled>Subir</button><button disabled>Bajar</button></p></section>
+</div>
+<small id="safe">MOTORES DESHABILITADOS · Sin órdenes de movimiento</small>
+<pre id="log" aria-live="polite">Abre en Chrome o Edge sobre localhost. Conecta el ESP32 por USB.</pre>
+</main><script src="serial.js"></script></body></html>
