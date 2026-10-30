@@ -69,6 +69,12 @@ void dispatch(const char* data) {
   }
   if(strcmp(cmd,"PING")==0){
     Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
+  } else if(strcmp(cmd,"GET_SENSORS")==0){
+    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"optical\":{\"model\":\"EE-SX671\",\"configured\":false,\"connected\":false,\"triggered\":null},\"stallguard\":{\"model\":\"TMC2209 StallGuard4\",\"z1_uart\":false,\"z2_uart\":false,\"z1_stall\":null,\"z2_stall\":null},\"calibration_enabled\":false}\n",id);
+  } else if(strcmp(cmd,"CALIBRATE_TIP")==0 || strcmp(cmd,"CALIBRATE_TABLE")==0 || strcmp(cmd,"JOG_START")==0 || strcmp(cmd,"JOG_KEEPALIVE")==0){
+    errorReply(id,"HARDWARE_NOT_VALIDATED");
+  } else if(strcmp(cmd,"JOG_STOP")==0){
+    disarm(); selectedAxis=0; replySelection(id);
   } else if(strcmp(cmd,"GET_INFO")==0){
     Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"%s\",\"mode\":\"GPIO_BENCH_TEST\"}\n",id,valver::kFirmwareVersion);
   } else if(strcmp(cmd,"SELECT_Z1")==0 || strcmp(cmd,"SELECT_Z2")==0){
