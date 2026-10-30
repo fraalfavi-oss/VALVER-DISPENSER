@@ -1,0 +1,3 @@
+# Parámetros
+
+Requisitos de validación.

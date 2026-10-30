@@ -1,0 +1,3 @@
+# Estados seguridad
+
+BOOT, INITIALIZING, FAULT ...

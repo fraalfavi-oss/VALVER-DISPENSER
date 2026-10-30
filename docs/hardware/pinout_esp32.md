@@ -1,0 +1,3 @@
+# Pinout
+
+Pendiente validación real.

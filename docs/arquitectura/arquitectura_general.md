@@ -1,0 +1,3 @@
+# Arquitectura general
+
+Sistema modular ...
