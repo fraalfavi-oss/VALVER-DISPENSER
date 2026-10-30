@@ -1,13 +1,22 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,armed=false;
 const el=id=>document.getElementById(id);
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
-function update(){const ready=connected&&pingOK&&verified&&!testing&&el('confirm').checked;
+function update(){const ready=connected&&pingOK&&verified&&!testing&&armed&&el('confirm').checked;
 el('state').textContent=connected?(pingOK?'ESP32 RESPONDE':'COM ABIERTO · SIN PONG'):'DESCONECTADO';
 el('state').style.color=pingOK?'#5fe2ad':'#f5b4b4';
 for(const id of ['ping','info','status','disconnect'])el(id).disabled=!connected;
 el('connect').disabled=connected;el('stop').disabled=!connected;
-document.querySelectorAll('.test').forEach(b=>b.disabled=!ready)}
+for(const id of ['choose1','choose2','disable','arm','disarm'])el(id).disabled=!connected||!pingOK||!verified||testing;
+el('arm').disabled=el('arm').disabled||!selected||armed||!el('confirm').checked;
+el('disarm').disabled=el('disarm').disabled||!armed;
+el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
+el('armState').textContent=armed?'AUTORIZADO PARA UNA PRUEBA':'BLOQUEADO';
+for(const n of [1,2]){el('card'+n).classList.toggle('selected',selected===n);el('card'+n).classList.toggle('locked',selected!==n)}
+document.querySelectorAll('.test').forEach(b=>b.disabled=!ready||!b.dataset.cmd.includes('Z'+selected))}
 function response(data){el('last').textContent=data.status+' · '+(data.code||data.reply||data.state||data.test||'ESP32');
+if(typeof data.selected_axis==='number'){selected=data.selected_axis;armed=data.armed===true;}
+if(data.status==='DONE'||data.status==='ACCEPTED'){armed=false;}
+if(data.status==='ERROR'){armed=false;log('Controlador rechazó la operación: '+data.code);}
 if(data.reply==='PONG'){pingOK=true;log('Comunicación verificada con PONG')}
 if(data.status==='OK'&&data.state==='GPIO_TEST_ONLY')verified=data.drivers_enabled===false&&data.motors_enabled===false;
 if(data.status==='DONE'||(data.status==='OK'&&data.state==='STOPPED')||data.status==='ERROR')testing=false;
@@ -22,9 +31,9 @@ catch(e){log('Error de lectura: '+e.message)}
 finally{if(connected)await disconnect()}}
 async function connect(){if(!('serial' in navigator)){log('Web Serial requiere Chrome o Edge en localhost');return}
 try{port=await navigator.serial.requestPort();await port.open({baudRate:115200});
-reader=port.readable.getReader();writer=port.writable.getWriter();connected=true;pingOK=false;verified=false;update();log('COM abierto · esperando firmware');void readLoop()}
+reader=port.readable.getReader();writer=port.writable.getWriter();connected=true;pingOK=false;verified=false;selected=0;armed=false;update();log('COM abierto · esperando firmware');void readLoop()}
 catch(e){log('Error de conexión: '+e.message);await disconnect()}}
-async function disconnect(){if(closing)return;closing=true;connected=false;pingOK=false;verified=false;testing=false;update();
+async function disconnect(){if(closing)return;closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;armed=false;update();
 try{await reader?.cancel()}catch{}try{reader?.releaseLock()}catch{}reader=null;
 try{writer?.releaseLock()}catch{}writer=null;
 try{await port?.close()}catch(e){log('Cierre: '+e.message)}port=null;closing=false}
@@ -32,6 +41,11 @@ async function send(cmd){if(!connected||!writer)return;const m={id:counter++,cmd
 try{await writer.write(new TextEncoder().encode(JSON.stringify(m)+'\n'));log('TX → '+JSON.stringify(m))}catch(e){log('Error de envío: '+e.message)}}
 el('connect').onclick=connect;el('disconnect').onclick=disconnect;
 el('ping').onclick=()=>send('PING');el('info').onclick=()=>send('GET_INFO');el('status').onclick=()=>send('GET_STATUS');
+el('choose1').onclick=()=>send('SELECT_Z1');
+el('choose2').onclick=()=>send('SELECT_Z2');
+el('disable').onclick=()=>send('DISABLE_CHANNELS');
+el('arm').onclick=()=>send('ARM_TEST');
+el('disarm').onclick=()=>send('DISARM_TEST');
 el('stop').onclick=()=>send('STOP_TEST');el('confirm').onchange=update;
-document.querySelectorAll('.test').forEach(b=>b.onclick=async()=>{if(b.disabled)return;testing=true;update();await send(b.dataset.cmd)});
+document.querySelectorAll('.test').forEach(b=>b.onclick=async()=>{if(b.disabled)return;testing=true;armed=false;update();await send(b.dataset.cmd)});
 update();
