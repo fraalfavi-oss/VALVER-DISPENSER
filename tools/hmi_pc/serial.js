@@ -49,3 +49,20 @@ el('disarm').onclick=()=>send('DISARM_TEST');
 el('stop').onclick=()=>send('STOP_TEST');el('confirm').onchange=update;
 document.querySelectorAll('.test').forEach(b=>b.onclick=async()=>{if(b.disabled)return;testing=true;armed=false;update();await send(b.dataset.cmd)});
 update();
+const descriptions={
+home:['CONTROL Z','Selecciona una sola aguja. Los motores siguen desconectados.'],
+tip:['CALIBRACIÓN DE PUNTA','La lectura del sensor óptico todavía no está implementada. No se ejecuta calibración física.'],
+table:['ALTURA DE MESA','La detección de contacto de mesa y StallGuard requieren validación antes de habilitarse.'],
+test:['PRUEBAS DE SEÑALES GPIO','Selecciona Z1 o Z2 en INICIO y autoriza una prueba individual. EN permanece deshabilitado.'],
+diag:['DIAGNÓSTICO','Utiliza PING, INFO y Estado para comprobar la comunicación USB con el ESP32.'],
+settings:['AJUSTES DE ALTURAS','Las alturas de reposo y dispensación se configurarán tras validar los motores y la referencia Z.']
+};
+function page(name){
+const x=descriptions[name]||descriptions.home;
+el('homePage').style.display=name==='home'?'block':'none';
+el('detailPage').style.display=name==='home'?'none':'block';
+el('detailTitle').textContent=x[0];el('detailText').textContent=x[1];
+el('detailChannel').textContent=selected?'Z'+selected:'Ninguno';
+document.querySelectorAll('button.nav').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+}
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
