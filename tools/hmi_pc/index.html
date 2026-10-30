@@ -2,7 +2,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#091421;color:#eef5fc;font-family:Arial,sans-serif}main{max-width:800px;margin:15px auto;padding:20px;background:#16283a;border:1px solid #3c566e;border-radius:12px}
 header{display:flex;justify-content:space-between;align-items:center}h1{margin:0;font-size:29px}small{color:#a9c1d5}button{background:#215e8c;color:white;border:1px solid #438aba;border-radius:7px;padding:11px;margin:4px;cursor:pointer;font-weight:bold}
-button:disabled{opacity:.35;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}.card{background:#20364b;border:1px solid #47708e;border-radius:10px;padding:14px}
+button:disabled{opacity:.35;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}.card.selected{outline:3px solid #5fe2ad}.card.locked{opacity:.48}.card{background:#20364b;border:1px solid #47708e;border-radius:10px;padding:14px}
 pre{background:#061524;color:#b6f5d4;height:144px;overflow:auto;white-space:pre-wrap;padding:12px;font-size:12px}.warning{color:#ffcd95}.stop{background:#963a4f}
 @media(max-width:640px){.grid{grid-template-columns:1fr}header{display:block}}
 </style></head><body><main>
@@ -10,9 +10,12 @@ pre{background:#061524;color:#b6f5d4;height:144px;overflow:auto;white-space:pre-
 <p><button id="connect">Conectar COM</button><button id="disconnect" disabled>Desconectar</button><button id="ping" disabled>Probar PING</button><button id="info" disabled>INFO</button><button id="status" disabled>Estado</button></p>
 <p class="warning"><strong>PRUEBA DE BANCO:</strong> VM desconectado, motores desconectados. EN se mantiene deshabilitado. Los pulsos son exclusivamente señales GPIO: NO verifican las salidas de potencia del TMC2209.</p>
 <label><input type="checkbox" id="confirm"> Confirmo VM desconectado, motores desconectados y cableado revisado.</label>
+<p><strong>CANAL ACTIVO:</strong> <span id="channelState">NINGUNO</span> · <span id="armState">BLOQUEADO</span></p>
+<p><button id="choose1" disabled>Seleccionar Z1 · Conductivo</button><button id="choose2" disabled>Seleccionar Z2 · Estructural</button><button id="disable" disabled>Bloquear ambos</button></p>
+<p><button id="arm" disabled>Habilitar UNA prueba</button><button id="disarm" disabled>Deshabilitar</button></p>
 <div class="grid">
-<section class="card"><h2>Z1 · Conductivo</h2><small>STEP GPIO4 · DIR GPIO5 · EN GPIO6 HIGH</small><p><button class="test" data-cmd="TEST_Z1_UP" disabled>▲ Prueba subir</button><button class="test" data-cmd="TEST_Z1_DOWN" disabled>▼ Prueba bajar</button></p></section>
-<section class="card"><h2>Z2 · Estructural</h2><small>STEP GPIO7 · DIR GPIO15 · EN GPIO16 HIGH</small><p><button class="test" data-cmd="TEST_Z2_UP" disabled>▲ Prueba subir</button><button class="test" data-cmd="TEST_Z2_DOWN" disabled>▼ Prueba bajar</button></p></section>
+<section id="card1" class="card locked"><h2>Z1 · Conductivo</h2><small>STEP GPIO4 · DIR GPIO5 · EN GPIO6 HIGH</small><p><button class="test" data-cmd="TEST_Z1_UP" disabled>▲ Prueba subir</button><button class="test" data-cmd="TEST_Z1_DOWN" disabled>▼ Prueba bajar</button></p></section>
+<section id="card2" class="card locked"><h2>Z2 · Estructural</h2><small>STEP GPIO7 · DIR GPIO15 · EN GPIO16 HIGH</small><p><button class="test" data-cmd="TEST_Z2_UP" disabled>▲ Prueba subir</button><button class="test" data-cmd="TEST_Z2_DOWN" disabled>▼ Prueba bajar</button></p></section>
 </div>
 <p><button id="stop" class="stop" disabled>DETENER PRUEBA</button> <small id="last">Sin respuesta del controlador</small></p>
 <pre id="log" aria-live="polite">Abrir con Chrome/Edge en http://localhost:8000. Cerrar monitores serie antes de conectar.</pre>
