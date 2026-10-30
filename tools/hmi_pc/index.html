@@ -1,23 +1,19 @@
-<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VALVER · HMI PC</title>
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VALVER · Banco GPIO</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#08121e;color:#e8f3ff;font-family:Arial,sans-serif}
-main{width:min(800px,100%);min-height:480px;margin:20px auto;background:#101f30;border:1px solid #344d65;border-radius:12px;padding:20px}
-header{display:flex;justify-content:space-between;align-items:center}h1{margin:0;font-size:28px}small{color:#9db5c9}
-button{background:#285e85;color:#fff;border:1px solid #477da4;border-radius:8px;padding:11px;margin:5px 2px;cursor:pointer}
-button:disabled{opacity:.4;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:15px 0}
-.card{background:#1b3046;border:2px solid #35516d;padding:16px;border-radius:10px;cursor:pointer}.card.selected{border-color:#50e2ac;box-shadow:inset 0 0 0 2px #245c4a}
-pre{height:120px;overflow:auto;background:#071522;border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap}
-.state{color:#f5b4b4}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+*{box-sizing:border-box}body{margin:0;background:#091421;color:#eef5fc;font-family:Arial,sans-serif}main{max-width:800px;margin:15px auto;padding:20px;background:#16283a;border:1px solid #3c566e;border-radius:12px}
+header{display:flex;justify-content:space-between;align-items:center}h1{margin:0;font-size:29px}small{color:#a9c1d5}button{background:#215e8c;color:white;border:1px solid #438aba;border-radius:7px;padding:11px;margin:4px;cursor:pointer;font-weight:bold}
+button:disabled{opacity:.35;cursor:not-allowed}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}.card{background:#20364b;border:1px solid #47708e;border-radius:10px;padding:14px}
+pre{background:#061524;color:#b6f5d4;height:144px;overflow:auto;white-space:pre-wrap;padding:12px;font-size:12px}.warning{color:#ffcd95}.stop{background:#963a4f}
+@media(max-width:640px){.grid{grid-template-columns:1fr}header{display:block}}
 </style></head><body><main>
-<header><div><h1>VALVER</h1><small>SMART DISPENSER · HMI PC 800 × 480</small></div><strong id="state" class="state">DESCONECTADO</strong></header>
-<p><button id="connect">Conectar ESP32 (COM)</button><button id="disconnect" disabled>Desconectar</button>
-<button id="ping" disabled>Probar PING</button><button id="info" disabled>Información</button><button id="status" disabled>Estado</button></p>
+<header><div><h1>VALVER</h1><small>SMART DISPENSER · HMI PC · Pruebas GPIO</small></div><strong id="state">DESCONECTADO</strong></header>
+<p><button id="connect">Conectar COM</button><button id="disconnect" disabled>Desconectar</button><button id="ping" disabled>Probar PING</button><button id="info" disabled>INFO</button><button id="status" disabled>Estado</button></p>
+<p class="warning"><strong>PRUEBA DE BANCO:</strong> VM desconectado, motores desconectados. EN se mantiene deshabilitado. Los pulsos son exclusivamente señales GPIO: NO verifican las salidas de potencia del TMC2209.</p>
+<label><input type="checkbox" id="confirm"> Confirmo VM desconectado, motores desconectados y cableado revisado.</label>
 <div class="grid">
-<section class="card selected" id="z1" tabindex="0"><h2>Z1 · Conductivo</h2><p>Seleccionar Z1</p><small>Calibración de punta y mesa: pendiente de validar.</small><p><button disabled>Subir</button><button disabled>Bajar</button></p></section>
-<section class="card" id="z2" tabindex="0"><h2>Z2 · Estructural</h2><p>Seleccionar Z2</p><small>Calibración de punta y mesa: pendiente de validar.</small><p><button disabled>Subir</button><button disabled>Bajar</button></p></section>
+<section class="card"><h2>Z1 · Conductivo</h2><small>STEP GPIO4 · DIR GPIO5 · EN GPIO6 HIGH</small><p><button class="test" data-cmd="TEST_Z1_UP" disabled>▲ Prueba subir</button><button class="test" data-cmd="TEST_Z1_DOWN" disabled>▼ Prueba bajar</button></p></section>
+<section class="card"><h2>Z2 · Estructural</h2><small>STEP GPIO7 · DIR GPIO15 · EN GPIO16 HIGH</small><p><button class="test" data-cmd="TEST_Z2_UP" disabled>▲ Prueba subir</button><button class="test" data-cmd="TEST_Z2_DOWN" disabled>▼ Prueba bajar</button></p></section>
 </div>
-<small id="safe">MOTORES DESHABILITADOS · Sin órdenes de movimiento</small>
-<pre id="log" aria-live="polite">Abre en Chrome o Edge sobre localhost. Conecta el ESP32 por USB.</pre>
+<p><button id="stop" class="stop" disabled>DETENER PRUEBA</button> <small id="last">Sin respuesta del controlador</small></p>
+<pre id="log" aria-live="polite">Abrir con Chrome/Edge en http://localhost:8000. Cerrar monitores serie antes de conectar.</pre>
 </main><script src="serial.js"></script></body></html>
