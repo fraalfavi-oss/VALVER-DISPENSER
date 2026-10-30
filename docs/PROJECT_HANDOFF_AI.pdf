@@ -1,0 +1,3312 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R] /Count 11 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 1281 >>
+stream
+q
+0.090 0.200 0.300 rg
+0 611.89 595.28 230 re f
+0.080 0.540 0.540 rg
+0 605.89 595.28 6 re f
+1.000 1.000 1.000 rg
+BT
+/F2 27 Tf
+1 0 0 1 52 737.89 Tm
+(VALVER SMART DISPENSER) Tj
+ET
+1.000 1.000 1.000 rg
+BT
+/F1 14 Tf
+1 0 0 1 52 704.89 Tm
+(Documento de traspaso t\351cnico para continuar con otra IA) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 10.00 Tf
+1 0 0 1 52.00 546.89 Tm
+(ESTADO DEL PROYECTO) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F2 10.20 Tf
+1 0 0 1 52.00 530.89 Tm
+(Snapshot del repositorio \267 30 de octubre de 2026) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.50 Tf
+1 0 0 1 52.00 513.89 Tm
+(Estado: prototipo temprano \267 firmware en modo seguro) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.50 Tf
+1 0 0 1 52.00 498.40 Tm
+(Objetivo configurado: ESP32-S3 DevKitC-1 \267 movimiento y salidas inhibidos) Tj
+ET
+0.390 0.450 0.500 rg
+BT
+/F1 10.00 Tf
+1 0 0 1 52.00 466.91 Tm
+(Incluye inventario t\351cnico, estado real del c\363digo, comandos de compilaci\363n, advertencias de) Tj
+ET
+0.390 0.450 0.500 rg
+BT
+/F1 10.00 Tf
+1 0 0 1 52.00 451.91 Tm
+(hardware y una gu\355a de continuidad para otra IA.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 1 de 11) Tj
+ET
+Q
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 7300 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 777.89 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 782.89 Tm
+(1. Resumen ejecutivo) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 756.89 Tm
+(VALVER SMART DISPENSER es un proyecto destinado a una m\341quina para dispensar adhesivos IMSE. El) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 743.83 Tm
+(repositorio re\372ne una primera base para firmware de control, una estructura de interfaz de pantalla,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 730.76 Tm
+(documentaci\363n de arquitectura y hardware, un simulador sencillo de estados y carpetas que preparan) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 717.70 Tm
+(trabajo futuro de pruebas, herramientas y recursos.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 702.63 Tm
+(La parte ejecutable m\341s concreta est\341 en firmware/controller. PlatformIO est\341 configurado para) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 689.57 Tm
+(compilar con la definici\363n de placa esp32-s3-devkitc-1, el paquete de plataforma espressif32 y el) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 676.51 Tm
+(framework Arduino. La configuraci\363n no confirma que la placa f\355sica sea ese modelo. El firmware activo) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 663.44 Tm
+(solo inicia el puerto serie, imprime diagn\363sticos y permanece en modo seguro. No mueve motores, no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 650.38 Tm
+(activa drivers, no lee sensores, no ejecuta dispensaci\363n y no dibuja una interfaz.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 635.31 Tm
+(Una serie de encabezados define contratos iniciales para m\363dulos de motor, sensores, seguridad,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 622.25 Tm
+(calibraci\363n, almacenamiento, comunicaci\363n y dispensaci\363n, pero no se encontraron archivos de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 609.19 Tm
+(implementaci\363n en los directorios de c\363digo correspondientes. La UI, los documentos detallados de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 596.12 Tm
+(hardware y las suites de pruebas tambi\351n est\341n pendientes.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 576.06 Tm
+(Estado de una frase) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 559.06 Tm
+(Es una plantilla funcional para iniciar y diagnosticar el ESP32-S3 por serie, no una m\341quina) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 545.99 Tm
+(dispensadora lista para fabricar, cablear o usar.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 520.93 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 525.93 Tm
+(2. Qu\351 est\341 implementado, qu\351 es una plantilla y qu\351 no existe todav\355a) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 494.93 Tm
+(Implementado en c\363digo) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 477.93 Tm
+(\225  Configuraci\363n PlatformIO del entorno del controlador.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 464.43 Tm
+(\225  firmware/controller/src/main.cpp: setup\(\), loop\(\) y reporte de diagn\363stico por Serial.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 450.93 Tm
+(\225  Constantes de proyecto y modo seguro en include/config/.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 437.43 Tm
+(\225  Un enum de estados de sistema en include/system/SystemState.h.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 423.93 Tm
+(\225  Declaraciones iniciales de interfaces de varios subsistemas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 410.43 Tm
+(\225  Un simulador Python independiente de una m\341quina de estados, con comprobaciones assert b\341sicas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 396.93 Tm
+(\225  Un ejemplo m\355nimo de proyecto de pantalla, identificado por extensi\363n .example.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 378.43 Tm
+(Esqueleto o placeholder) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 361.43 Tm
+(\225  Los encabezados bajo firmware/controller/include/ describen funciones previstas, pero no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 348.93 Tm
+(   constituyen su implementaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 335.43 Tm
+(\225  Las carpetas bajo firmware/controller/src/ para subsistemas est\341n vac\355as en el inventario) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 322.93 Tm
+(   realizado, salvo el archivo ra\355z main.cpp.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 309.43 Tm
+(\225  La configuraci\363n de pines tiene todos sus n\372meros en cero. Son valores provisionales, no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 296.93 Tm
+(   conexiones GPIO.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 283.43 Tm
+(\225  display/platformio.ini.example es un ejemplo de configuraci\363n, no la configuraci\363n activa del) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 270.93 Tm
+(   controlador.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 257.43 Tm
+(\225  Las carpetas para pantallas, recursos, simuladores y pruebas est\341n preparadas, pero no contienen) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 244.93 Tm
+(   funciones verificadas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 231.43 Tm
+(\225  Muchos archivos Markdown de docs/ tienen solo un encabezado y una nota de \223pendiente\224; no deben) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 218.93 Tm
+(   tomarse como requisitos aprobados.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 200.43 Tm
+(No est\341 implementado o validado) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 183.43 Tm
+(\225  Movimiento, homing, dosificaci\363n, control del TMC2209, lectura de sensores y calibraci\363n real.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 169.93 Tm
+(\225  Interfaz gr\341fica funcional o comunicaci\363n real entre una pantalla y un controlador.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 156.43 Tm
+(\225  Asignaci\363n GPIO validada, esquema, lista de materiales completa o procedimientos el\351ctricos) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 143.93 Tm
+(   aprobados.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 130.43 Tm
+(\225  Protocolo de comunicaci\363n versionado y comprobado.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 116.93 Tm
+(\225  Guardado/recuperaci\363n real de par\341metros.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 103.43 Tm
+(\225  Pruebas unitarias, integraci\363n y hardware completas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 89.93 Tm
+(\225  Confirmaci\363n de que la placa conectada f\355sicamente sea la placa seleccionada en PlatformIO.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 2 de 11) Tj
+ET
+Q
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 7051 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 777.89 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 782.89 Tm
+(3. Mapa completo del repositorio) Tj
+ET
+0.920 0.950 0.970 rg
+49.00 272.89 497.28 489.00 re f
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 747.89 Tm
+(README.md) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 737.29 Tm
+(  Brev\355sima presentaci\363n del producto.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 726.69 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 716.09 Tm
+(config/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 705.49 Tm
+(  defaults/ y examples/ \227 directorios vac\355os preparados para configuraciones.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 694.89 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 684.29 Tm
+(display/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 673.69 Tm
+(  platformio.ini.example, src/main.cpp.example) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 663.09 Tm
+(  include/ScreenManager.h, UIConfig.h, UIProtocol.h) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 652.49 Tm
+(  screens/Calibration, Diagnostics, Dispensing, HomeScreen,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 641.89 Tm
+(          ManualControl, Recipes, Settings) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 631.29 Tm
+(  assets/fonts, icons, images; themes/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 620.69 Tm
+(  Proyecto de interfaz en fase de estructura, no listo para cargar.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 610.09 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 599.49 Tm
+(docs/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 588.89 Tm
+(  CHANGELOG.md) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 578.29 Tm
+(  arquitectura/{arquitectura_general,comunicacion_controladores,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 567.69 Tm
+(                diagrama_bloques,git_workflow}.md) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 557.09 Tm
+(  firmware/{configuracion_motores,estructura_firmware,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 546.49 Tm
+(            protocolo_comunicacion,registro_parametros}.md) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 535.89 Tm
+(  hardware/{alimentacion_y_protecciones,conexiones_sensores,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 525.29 Tm
+(            conexiones_tmc2209,inventario_componentes,pantalla_elecrow,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 514.69 Tm
+(            pinout_esp32}.md) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 504.09 Tm
+(  pruebas/{plan_validacion,pruebas_dispensacion,pruebas_electronicas,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 493.49 Tm
+(           pruebas_motores}.md) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 482.89 Tm
+(  seguridad/{analisis_riesgos,estados_seguridad,procedimiento_pruebas}.md) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 472.29 Tm
+(  PROJECT_HANDOFF_AI.md y PROJECT_HANDOFF_AI.pdf) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 461.69 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 451.09 Tm
+(firmware/controller/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 440.49 Tm
+(  platformio.ini) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 429.89 Tm
+(  include/calibration/CalibrationManager.h) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 419.29 Tm
+(  include/communication/{Protocol.h,SerialManager.h}) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 408.69 Tm
+(  include/config/{HardwareConfig.h,PinConfig.h,SystemConfig.h}) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 398.09 Tm
+(  include/dispensing/{DispenserChannel.h,DispensingManager.h}) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 387.49 Tm
+(  include/motors/{MotorController.h,TMC2209Manager.h}) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 376.89 Tm
+(  include/safety/{FaultManager.h,SafetyManager.h}) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 366.29 Tm
+(  include/sensors/{EndstopManager.h,NeedleSensor.h}) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 355.69 Tm
+(  include/storage/SettingsManager.h) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 345.09 Tm
+(  include/system/{SystemManager.h,SystemState.h}) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 334.49 Tm
+(  src/main.cpp y carpetas src/{calibration,communication,dispensing,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 323.89 Tm
+(     motors,safety,sensors,storage,system} vac\355as) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 313.29 Tm
+(  lib/ y test/ vac\355as.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 302.69 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 292.09 Tm
+(hardware/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 281.49 Tm
+(  datasheets/, mechanical/, schematics/, wiring/ \227 directorios vac\355os.) Tj
+ET
+0.920 0.950 0.970 rg
+49.00 89.29 497.28 181.60 re f
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 256.89 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 246.29 Tm
+(scripts/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 235.69 Tm
+(  build/, flash/, validation/ \227 directorios de trabajo preparados.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 225.09 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 214.49 Tm
+(shared/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 203.89 Tm
+(  constants/, models/, protocols/ \227 directorios vac\355os.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 193.29 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 182.69 Tm
+(simulation/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 172.09 Tm
+(  README.md, state_machine_simulator.py) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 161.49 Tm
+(  motor_simulator/, protocol_simulator/, sensor_simulator/ vac\355as.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 150.89 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 140.29 Tm
+(tests/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 129.69 Tm
+(  hardware/, integration/, unit/ \227 directorios vac\355os.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 119.09 Tm
+() Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 108.49 Tm
+(tools/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 97.89 Tm
+(  calibration_tools/, diagnostics/, serial_monitor/ \227 directorios vac\355os.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 3 de 11) Tj
+ET
+Q
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 6686 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 787.89 Tm
+(La presencia de un directorio indica organizaci\363n prevista, no una funci\363n terminada. Los archivos que) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 774.83 Tm
+(s\355 existen est\341n enumerados a lo largo de esta gu\355a y en las carpetas indicadas.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 749.76 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 754.76 Tm
+(4. Arquitectura: visi\363n prevista frente al comportamiento actual) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 723.76 Tm
+(Bloques previstos en la documentaci\363n) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 706.76 Tm
+(El diagrama inicial enumera cuatro elementos: ESP32-S3, driver TMC2209, sensores y pantalla. Es una) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 693.70 Tm
+(arquitectura de alto nivel, sin interfaces el\351ctricas ni de software confirmadas. La documentaci\363n) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 680.63 Tm
+(menciona comunicaci\363n entre controladores, pero no especifica si habr\341 dos microcontroladores ni un) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 667.57 Tm
+(protocolo funcional.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 647.51 Tm
+(Separaci\363n l\363gica sugerida por el c\363digo) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 630.51 Tm
+(Los encabezados proponen una arquitectura modular con estas responsabilidades:) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 615.44 Tm
+(1.  SystemManager mantiene el estado general y decide si es seguro mover.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 601.94 Tm
+(2.  SafetyManager y FaultManager detectan/registran fallos y requieren reconocimiento.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 588.44 Tm
+(3.  EndstopManager y NeedleSensor representan se\361ales f\355sicas que deben validarse.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 574.94 Tm
+(4.  TMC2209Manager configura/consulta drivers; MotorController deber\355a aislar control de motores.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 561.44 Tm
+(5.  CalibrationManager, SettingsManager, DispenserChannel y DispensingManager representar\355an) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 548.94 Tm
+(   calibraci\363n, par\341metros y ejecuci\363n de la operaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 535.44 Tm
+(6.  Protocol y SerialManager ser\355an la frontera de comunicaciones.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 521.94 Tm
+(7.  display/ ser\355a el futuro lado de interfaz humana.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 508.44 Tm
+(Esta separaci\363n se deduce de los nombres y m\351todos declarados; no existe a\372n un flujo integrado. Por) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 495.38 Tm
+(ejemplo, no se puede asumir que SafetyManager realmente impida una llamada al motor: todav\355a no hay) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 482.31 Tm
+(una implementaci\363n que lo demuestre.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 462.25 Tm
+(Flujo del programa que s\355 existe) Tj
+ET
+0.920 0.950 0.970 rg
+49.00 321.65 497.28 128.60 re f
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 436.25 Tm
+(Alimentar la placa por USB) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 425.65 Tm
+(        ?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 415.05 Tm
+(Arduino llama setup\(\)) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 404.45 Tm
+(        ?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 393.85 Tm
+(Serial.begin\(115200\) y pausa de 500 ms) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 383.25 Tm
+(        ?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 372.65 Tm
+(Mensajes de inicio y diagn\363stico en el monitor serie) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 362.05 Tm
+(        ?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 351.45 Tm
+(loop\(\) espera y vuelve a reportar cada 5 segundos) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 340.85 Tm
+(        ?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 330.25 Tm
+(Salidas de actuadores permanecen inhibidas) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 314.65 Tm
+(El flujo futuro de homing, calibraci\363n, armado y dispensaci\363n debe dise\361arse, revisarse y probarse) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 301.59 Tm
+(antes de implementarse. El enum por s\355 solo no realiza transiciones ni impone condiciones de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 288.52 Tm
+(seguridad.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 263.46 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 268.46 Tm
+(5. Controlador: configuraci\363n exacta y funcionamiento) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 237.46 Tm
+(Archivo firmware/controller/platformio.ini) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 220.46 Tm
+(\225  [platformio] fija default_envs = esp32-s3-devkitc-1.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 206.96 Tm
+(\225  [env:esp32-s3-devkitc-1] define el entorno de compilaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 193.46 Tm
+(\225  platform = espressif32 solicita el soporte de Espressif para PlatformIO.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 179.96 Tm
+(\225  board = esp32-s3-devkitc-1 fija la definici\363n de placa del entorno.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 166.46 Tm
+(\225  framework = arduino selecciona Arduino.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 152.96 Tm
+(\225  monitor_speed = 115200 configura el monitor serie.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 139.46 Tm
+(No se declaran bibliotecas externas, opciones de carga espec\355ficas, puertos fijos ni flags de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 126.39 Tm
+(seguridad adicionales en este archivo.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 106.33 Tm
+(Archivo firmware/controller/src/main.cpp) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 89.33 Tm
+(#### setup\(\)) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 4 de 11) Tj
+ET
+Q
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 6635 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 787.89 Tm
+(\225  Inicia el puerto serie mediante Serial.begin\(valver::kDefaultBaudRate\).) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 774.39 Tm
+(\225  Espera 500 milisegundos para permitir que el monitor serie se conecte.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 760.89 Tm
+(\225  Imprime separadores, nombre del proyecto, versi\363n 0.1.0-dev, el texto de modo seguro y el estado) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 748.39 Tm
+(   inicial esperado.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 734.89 Tm
+(\225  Invoca printDiagnosticStatus\(\).) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 721.39 Tm
+(#### loop\(\)) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 706.33 Tm
+(\225  Conserva una marca temporal lastReport.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 692.83 Tm
+(\225  Cada 5000 ms vuelve a imprimir el diagn\363stico.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 679.33 Tm
+(\225  Incluye una espera de 100 ms por iteraci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 665.83 Tm
+(\225  No llama a motores ni sensores y no recibe comandos.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 652.33 Tm
+(#### printDiagnosticStatus\(\)) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 637.26 Tm
+(Imprime modo seguro, nombre/versi\363n, indicador de movimiento habilitado, disponibilidad de motores,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 624.20 Tm
+(modo de simulaci\363n e inhibici\363n de salidas. Los valores visibles proceden de constantes compiladas, no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 611.13 Tm
+(de una detecci\363n del hardware.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 596.07 Tm
+(Mensajes que se esperan en Monitor serie: VALVER SMART DISPENSER, Firmware boot in safe mode, System) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 583.01 Tm
+(initialized in safe mode y l\355neas [DIAG] peri\363dicas. No se ha confirmado todav\355a que se hayan visto en) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 569.94 Tm
+(una placa real.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 544.88 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 549.88 Tm
+(6. Configuraci\363n de firmware, pinout y estado) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 518.88 Tm
+(include/config/SystemConfig.h) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 501.88 Tm
+(\225  kProjectName: nombre visible del producto.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 488.38 Tm
+(\225  kFirmwareVersion: cadena 0.1.0-dev.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 474.88 Tm
+(\225  kMovementDisabled: true, mantiene movimiento deshabilitado.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 456.38 Tm
+(include/config/HardwareConfig.h) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 439.38 Tm
+(\225  kDefaultBaudRate: 115200U.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 425.88 Tm
+(\225  kMotorsAvailable: false.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 412.38 Tm
+(\225  kSimulationMode: false.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 398.88 Tm
+(Estas constantes son flags compilados; no constituyen un gestor de configuraci\363n ni prueban la) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 385.81 Tm
+(presencia/ausencia f\355sica del hardware.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 365.75 Tm
+(include/config/PinConfig.h) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 348.75 Tm
+(PinConfig contiene siete campos de 8 bits: stepChannel1, dirChannel1, stepChannel2, dirChannel2,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 335.69 Tm
+(endstopA, endstopB y needleSensor. Todos se inicializan en 0. No cambiar estos valores hasta) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 322.62 Tm
+(identificar la placa y dise\361ar el pinout conforme al datasheet. No conectar nada a GPIO 0 bas\341ndose en) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 309.56 Tm
+(estos placeholders.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 289.49 Tm
+(include/system/SystemState.h) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 272.49 Tm
+(Los estados declarados son BOOT, INITIALIZING, IDLE, NOT_HOMED, HOMING, READY, DISPENSING, PAUSED,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 259.43 Tm
+(FAULT y DISABLED_STATE. Los nombres sugieren fases/condiciones de una m\341quina de estados; a\372n no hay) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 246.37 Tm
+(transiciones ni validaciones que los impongan.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 231.30 Tm
+(#### Colisi\363n con macro corregida) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 216.24 Tm
+(El primer intento de compilaci\363n mostr\363 que el core ESP32 Arduino define DISABLED como macro num\351rica.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 203.17 Tm
+(El enum ten\355a tambi\351n un miembro llamado DISABLED, causando error del preprocesador. El miembro se) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 190.11 Tm
+(renombr\363 a DISABLED_STATE para evitar la colisi\363n. La correcci\363n est\341 aplicada, pero el siguiente pio) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 177.05 Tm
+(run debe confirmar que el build completo termina con SUCCESS. No se cambi\363 una funci\363n de seguridad:) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 163.98 Tm
+(fue un ajuste de nombre en el enum.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 138.92 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 143.92 Tm
+(7. Interfaces declaradas en include/) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 117.92 Tm
+(Esta secci\363n enumera exactamente el prop\363sito visible en las firmas. Las funciones no tienen una) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 104.85 Tm
+(implementaci\363n demostrada y algunas clases carecen a\372n de datos o m\351todos suficientes para un sistema) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 91.79 Tm
+(real.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 5 de 11) Tj
+ET
+Q
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 17 0 R >>
+endobj
+17 0 obj
+<< /Length 7312 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 782.89 Tm
+(Sistema) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 765.89 Tm
+(\225  system/SystemManager.h: constructor; initialize\(\); getState\(\) const; setState\(SystemState\);) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 753.39 Tm
+(   isSafeToMove\(\) const; campo privado currentState_. Debe definirse c\363mo se validan transiciones y) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 740.89 Tm
+(   qu\351 condiciones hacen seguro el movimiento.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 727.39 Tm
+(\225  system/SystemState.h: enum de estados descrito arriba.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 708.89 Tm
+(Motores y drivers) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 691.89 Tm
+(\225  motors/MotorController.h: constructor; isAvailable\(\) const; disableOutputs\(\). No define se\361ales) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 679.39 Tm
+(   STEP/DIR, l\355mites, velocidad, aceleraci\363n, pasos ni manejo de interrupciones.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 665.89 Tm
+(\225  motors/TMC2209Manager.h: constructor; isDriverReady\(\) const; disableDrivers\(\). No define) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 653.39 Tm
+(   interfaz UART, direcci\363n, corriente, microsteps ni l\355mites t\351rmicos.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 634.89 Tm
+(Sensores) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 617.89 Tm
+(\225  sensors/EndstopManager.h: constructor y isAnyEndstopActive\(\) const. No identifica pines,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 605.39 Tm
+(   polaridades, filtros, diagn\363stico de cable abierto ni estados por eje.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 591.89 Tm
+(\225  sensors/NeedleSensor.h: constructor y isNeedleValid\(\) const. La nota de hardware cita EE-SX671) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 579.39 Tm
+(   pendiente de validar, pero no se especifican su circuito o lectura.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 560.89 Tm
+(Seguridad y fallos) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 543.89 Tm
+(\225  safety/SafetyManager.h: constructor; isFaultPresent\(\) const; acknowledgeFault\(\). No hay reglas) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 531.39 Tm
+(   de fallo, paro, enclavamiento o recuperaci\363n implementadas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 517.89 Tm
+(\225  safety/FaultManager.h: constructor; reportFault\(const char message\). No define c\363digos,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 505.39 Tm
+(   almacenamiento, severidades o canal de reporte.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 486.89 Tm
+(Dispensaci\363n y calibraci\363n) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 469.89 Tm
+(\225  dispensing/DispenserChannel.h: constructor e isEnabled\(\) const; representa conceptualmente un) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 457.39 Tm
+(   canal.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 443.89 Tm
+(\225  dispensing/DispensingManager.h: constructor y canDispense\(\) const; todav\355a no expone par\341metros) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 431.39 Tm
+(   de receta ni control de volumen/tiempo.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 417.89 Tm
+(\225  calibration/CalibrationManager.h: constructor y hasValidCalibration\(\) const; no se especifican) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 405.39 Tm
+(   rutina, unidades, tolerancias ni persistencia.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 386.89 Tm
+(Comunicaci\363n y almacenamiento) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 369.89 Tm
+(\225  communication/Protocol.h: estructura ProtocolMessage con dos enteros id y version. No es por s\355) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 357.39 Tm
+(   sola un protocolo serial: faltan framing, longitud, checksum, codificaci\363n, l\355mites, timeout y) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 344.89 Tm
+(   manejo de errores.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 331.39 Tm
+(\225  communication/SerialManager.h: constructor y begin\(unsigned long baudRate\). No implementa en el) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 318.89 Tm
+(   encabezado lectura de mensajes ni comandos.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 305.39 Tm
+(\225  storage/SettingsManager.h: constructor y loadDefaultSettings\(\). No define d\363nde se almacenan) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 292.89 Tm
+(   par\341metros ni c\363mo migran/versionan.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 269.39 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 274.39 Tm
+(8. Pantalla y experiencia de usuario) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 248.39 Tm
+(display/ es un proyecto aparte en preparaci\363n. Su README.md indica que el directorio prepara la base) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 235.33 Tm
+(de UI.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 220.26 Tm
+(\225  platformio.ini.example selecciona espressif32, esp32-s3-devkitc-1, Arduino y 115200. El sufijo) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 207.76 Tm
+(   .example importa: no es el platformio.ini activo del controlador.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 194.26 Tm
+(\225  src/main.cpp.example solo inicia Serial, imprime Display project skeleton y espera en loop\(\).) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 180.76 Tm
+(\225  include/UIConfig.h: nombre de UI y kDisplayUiEnabled = false.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 167.26 Tm
+(\225  include/UIProtocol.h: estructura m\355nima UiCommand con commandId y channel.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 153.76 Tm
+(\225  include/ScreenManager.h: constructor e initialize\(\) declarados, sin implementaci\363n verificada.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 140.26 Tm
+(\225  Las pantallas previstas son HomeScreen, ManualControl, Calibration, Diagnostics, Dispensing,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 127.76 Tm
+(   Recipes y Settings. Sus carpetas est\341n vac\355as.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 114.26 Tm
+(\225  assets/fonts, assets/icons, assets/images y themes/ son directorios vac\355os en el inventario.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 100.76 Tm
+(\225  docs/hardware/pantalla_elecrow.md exige identificar el modelo exacto. No se conoce resoluci\363n,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 88.26 Tm
+(   controlador gr\341fico, interfaz, tensi\363n ni biblioteca recomendada.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 6 de 11) Tj
+ET
+Q
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<< /Length 6629 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 787.89 Tm
+(No compilar ni cargar display/ como si estuviese terminado. Primero identificar hardware y definir si) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 774.83 Tm
+(comparte el ESP32 o usa un controlador independiente.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 749.76 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 754.76 Tm
+(9. Simulaci\363n y pruebas) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 723.76 Tm
+(Simulador Python) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 706.76 Tm
+(simulation/state_machine_simulator.py define:) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 691.70 Tm
+(\225  SystemState: estados creados con Enum y auto\(\).) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 678.20 Tm
+(\225  SimulatedController: estado actual, flag motors_enabled y fault_active.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 664.70 Tm
+(\225  initialize\(\): pasa por INITIALIZING, deshabilita motores, limpia flag de fallo y deja el estado) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 652.20 Tm
+(   en IDLE.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 638.70 Tm
+(\225  command_move\(authorized\): rechaza si hay fallo o si no est\341 autorizado; tambi\351n rechaza si) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 626.20 Tm
+(   motores no est\341n habilitados; de lo contrario cambia a DISPENSING.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 612.70 Tm
+(\225  enable_motors\(allowed\): aplica el permiso solo si no existe un fallo.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 599.20 Tm
+(\225  fault\(\) y clear_fault\(\): activan el estado FAULT o vuelven a IDLE.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 585.70 Tm
+(\225  Al ejecutarse como script, usa assert para probar arranque, rechazo de movimientos no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 573.20 Tm
+(   permitidos, habilitaci\363n conceptual, bloqueo por fallo y recuperaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 559.70 Tm
+(Ejecuci\363n desde la ra\355z en Windows:) Tj
+ET
+0.920 0.950 0.970 rg
+49.00 527.03 497.28 22.60 re f
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 535.63 Tm
+(python .\\simulation\\state_machine_simulator.py) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 520.03 Tm
+(Salida esperada seg\372n el propio script: Simulation OK: state machine and command validation are) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 506.97 Tm
+(working. El simulador es l\363gica de software de juguete. No acciona hardware, no simula tiempos reales) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 493.91 Tm
+(ni valida el TMC2209, sensores, cableado o seguridad el\351ctrica. La opci\363n de habilitar los motores en) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 480.84 Tm
+(una prueba simulada no significa que se deba habilitar en el firmware.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 460.78 Tm
+(Estado de pruebas del repositorio) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 443.78 Tm
+(tests/unit, tests/integration y tests/hardware existen pero est\341n vac\355os. firmware/controller/test) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 430.71 Tm
+(tambi\351n est\341 vac\355o. Los documentos de pruebas son encabezados de planificaci\363n; no contienen) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 417.65 Tm
+(resultados, mediciones ni criterios detallados de aprobaci\363n.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 392.59 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 397.59 Tm
+(10. C\363mo abrir, compilar y cargar el firmware) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 366.59 Tm
+(Abrir el proyecto correcto) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 349.59 Tm
+(En VS Code, abrir la carpeta firmware/controller como proyecto PlatformIO. Es la carpeta que contiene) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 336.52 Tm
+(platformio.ini. Abrir solo el archivo .ini no siempre equivale a abrir la carpeta del proyecto.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 316.46 Tm
+(Compilar) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 299.46 Tm
+(En PowerShell:) Tj
+ET
+0.920 0.950 0.970 rg
+49.00 256.19 497.28 33.20 re f
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 275.39 Tm
+(Set-Location "C:\\Users\\<usuario>\\VALVER_SMART_DISPENSER\\firmware\\controller") Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 264.79 Tm
+(pio run) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 249.19 Tm
+(Cambiar <usuario> por la carpeta de usuario de Windows. La terminal debe quedar en) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 236.13 Tm
+(...\\firmware\\controller> antes de ejecutar pio run.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 221.07 Tm
+(Tambi\351n se puede usar la paleta de comandos de VS Code: Ctrl+Shift+P ? PlatformIO: Build. Compilar no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 208.00 Tm
+(requiere placa ni puerto serie.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 192.94 Tm
+(Errores ya observados:) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 177.87 Tm
+(\225  NotPlatformIOProjectError: se ejecut\363 pio run desde la ra\355z, donde no est\341 el ini; entrar a) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 165.37 Tm
+(   firmware/controller.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 151.87 Tm
+(\225  expected identifier ... DISABLED: el enumerador choc\363 con la macro Arduino; renombrado a) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 139.37 Tm
+(   DISABLED_STATE, queda volver a compilar.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 125.87 Tm
+(Si la terminal dice que pio no se reconoce, usar PlatformIO: Build desde VS Code o abrir una terminal) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 112.81 Tm
+(que tenga la CLI de PlatformIO disponible. No correr platformio project init: este repositorio ya) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 99.75 Tm
+(tiene configuraci\363n en su subcarpeta.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 7 de 11) Tj
+ET
+Q
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 21 0 R >>
+endobj
+21 0 obj
+<< /Length 6917 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 782.89 Tm
+(Puerto, carga y monitor serie) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 765.89 Tm
+(El puerto se usa para la carga y el monitor, no para compilar. Cuando Windows enumere la placa,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 752.83 Tm
+(identificar el puerto COM real en Administrador de dispositivos o mediante:) Tj
+ET
+0.920 0.950 0.970 rg
+49.00 698.96 497.28 43.80 re f
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 728.76 Tm
+(pio device list) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 718.16 Tm
+(pio run -t upload --upload-port COM5) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F3 7.60 Tf
+1 0 0 1 56.00 707.56 Tm
+(pio device monitor --port COM5 --baud 115200) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 691.96 Tm
+(COM5 es solo un ejemplo. Sustituir por el puerto real. No seleccionar un COM inventado. Monitor serie) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 678.90 Tm
+(configurado a 115200.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 658.83 Tm
+(Problema USB registrado en la sesi\363n) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 641.83 Tm
+(Windows mostr\363 \223Dispositivo USB desconocido \(Error de solicitud de descriptor de dispositivo\)\224. Eso) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 628.77 Tm
+(significa que todav\355a no se hab\355a confirmado un COM; el problema ocurre antes de PlatformIO, no se) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 615.71 Tm
+(arregla editando el enum ni el archivo de plataforma.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 600.64 Tm
+(Secuencia de diagn\363stico prudente:) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 585.58 Tm
+(1.  Probar un cable USB que se sepa que transmite datos.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 572.08 Tm
+(2.  Conectar directamente a otro puerto de la PC, sin hub ni adaptador.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 558.58 Tm
+(3.  Si la placa tiene varios conectores, identificar su funci\363n por modelo/manual y probar el) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 546.08 Tm
+(   conector de programaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 532.58 Tm
+(4.  Observar si la entrada aparece/desaparece en Administrador de dispositivos al reconectar.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 519.08 Tm
+(5.  Probar cable y placa en otra PC.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 505.58 Tm
+(6.  Identificar fabricante del puente USB/VID-PID antes de instalar el driver oficial) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 493.08 Tm
+(   correspondiente.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 479.58 Tm
+(7.  Usar BOOT/RESET solo tras identificar el modelo: el procedimiento depende de la placa.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 466.08 Tm
+(No instalar controladores al azar ni cargar mientras Windows mantenga el error de descriptor. No est\341) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 453.01 Tm
+(confirmada la causa f\355sica \(cable, conector, placa o controlador\), por lo que se debe diagnosticar, no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 439.95 Tm
+(adivinar.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 414.89 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 419.89 Tm
+(11. Hardware nombrado, desconocido y seguridad) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 388.89 Tm
+(Elementos nombrados en los documentos) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 371.89 Tm
+(\225  ESP32-S3 como objetivo general/objetivo de PlatformIO.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 358.39 Tm
+(\225  TMC2209 como driver de motor previsto.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 344.89 Tm
+(\225  Finales de carrera y sensor EE-SX671 citado como pendiente de revisi\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 331.39 Tm
+(\225  Pantalla Elecrow, sin modelo exacto.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 317.89 Tm
+(\225  Fuente de 24 V mencionada en la advertencia de alimentaci\363n; no est\341 documentado su dise\361o) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 305.39 Tm
+(   completo.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 291.89 Tm
+(\225  Aplicaci\363n prevista para adhesivos IMSE.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 278.39 Tm
+(No hay evidencia suficiente para fijar cantidad/modelo de motores, corriente, tensi\363n de driver,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 265.32 Tm
+(modelo de la placa real, configuraci\363n de sensor o tipo de dispensado. Estos datos deben obtenerse de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 252.26 Tm
+(las etiquetas y hojas de datos del hardware f\355sico.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 232.19 Tm
+(Advertencias no negociables) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 215.19 Tm
+(\225  No conectar 24 V directamente a GPIO.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 201.69 Tm
+(\225  No usar los 0 de PinConfig como indicaci\363n de cableado.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 188.19 Tm
+(\225  Mantener kMovementDisabled = true y kMotorsAvailable = false mientras hardware/configuraci\363n no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 175.69 Tm
+(   est\351n validados.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 162.19 Tm
+(\225  No habilitar outputs ni cambiar el firmware a movimiento real sin an\341lisis de riesgos, paro,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 149.69 Tm
+(   l\355mites, homing y prueba controlada.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 136.19 Tm
+(\225  Separar alimentaci\363n de l\363gica y potencia seg\372n hojas de datos, dise\361ar protecciones/masa de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 123.69 Tm
+(   forma expl\355cita y revisar temperaturas/corriente antes de operaci\363n; los detalles concretos a\372n) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 111.19 Tm
+(   no est\341n especificados.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 97.69 Tm
+(\225  No asumir que una se\361al de sensor es compatible con 3.3 V del ESP32-S3 hasta comprobar datasheet) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 85.19 Tm
+(   y circuito.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 8 de 11) Tj
+ET
+Q
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 7642 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 777.89 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 782.89 Tm
+(12. Documentaci\363n existente: lectura correcta) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 756.89 Tm
+(Los documentos de arquitectura contienen t\355tulos y declaraciones generales; la mayor\355a tienen una o) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 743.83 Tm
+(dos l\355neas, no especificaciones completas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 728.76 Tm
+(\225  docs/arquitectura/arquitectura_general.md: dice \223Sistema modular ...\224.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 715.26 Tm
+(\225  docs/arquitectura/diagrama_bloques.md: enumera ESP32-S3, TMC2209, sensores y pantalla.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 701.76 Tm
+(\225  docs/arquitectura/comunicacion_controladores.md: protocolo pendiente de validar.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 688.26 Tm
+(\225  docs/arquitectura/git_workflow.md: propone ramas main, develop, feature/, test/; no describe) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 675.76 Tm
+(   pol\355tica completa.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 662.26 Tm
+(\225  docs/firmware/estructura_firmware.md: sugiere estructura modular y segura.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 648.76 Tm
+(\225  docs/firmware/protocolo_comunicacion.md: indica que el protocolo se documentar\341 y validar\341.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 635.26 Tm
+(\225  docs/firmware/configuracion_motores.md: dice que los drivers a\372n no se activan.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 621.76 Tm
+(\225  docs/firmware/registro_parametros.md: pide requisitos de validaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 608.26 Tm
+(\225  docs/hardware/pinout_esp32.md: pinout pendiente de validaci\363n real.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 594.76 Tm
+(\225  docs/hardware/alimentacion_y_protecciones.md: advierte no conectar 24 V a GPIO.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 581.26 Tm
+(\225  docs/hardware/conexiones_tmc2209.md: conexiones se comprobar\341n con datasheet real.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 567.76 Tm
+(\225  docs/hardware/conexiones_sensores.md: finales de carrera y EE-SX671 pendientes.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 554.26 Tm
+(\225  docs/hardware/pantalla_elecrow.md: modelo exacto pendiente de identificaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 540.76 Tm
+(\225  docs/hardware/inventario_componentes.md: estado inicial de componentes, sin una lista validada.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 527.26 Tm
+(\225  docs/seguridad/analisis_riesgos.md: recuerda considerar condiciones de fallo, sin matriz de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 514.76 Tm
+(   riesgo.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 501.26 Tm
+(\225  docs/seguridad/estados_seguridad.md: enumera BOOT, INITIALIZING, FAULT y puntos suspensivos.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 487.76 Tm
+(\225  docs/seguridad/procedimiento_pruebas.md: propone pruebas seguras por etapas, sin procedimiento) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 475.26 Tm
+(   detallado.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 461.76 Tm
+(\225  docs/pruebas/plan_validacion.md: menciona pruebas sin y con hardware.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 448.26 Tm
+(\225  docs/pruebas/pruebas_electronicas.md, pruebas_motores.md, pruebas_dispensacion.md: pendientes.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 434.76 Tm
+(\225  docs/CHANGELOG.md: marca la estructura base como cambio no liberado.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 421.26 Tm
+(\225  README.md: identifica el proyecto como base para dispensaci\363n de adhesivos IMSE.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 407.76 Tm
+(Todo lo anterior sirve como intenci\363n/contexto, no sustituye un plano, requisito aprobado o acta de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 394.70 Tm
+(validaci\363n.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 369.63 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 374.63 Tm
+(13. Configuraci\363n del repositorio y convenciones) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 348.63 Tm
+(\225  .editorconfig: UTF-8, finales de l\355nea LF, espacios, indentaci\363n de dos espacios, newline final.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 335.13 Tm
+(\225  .gitignore: excluye .pio/, __pycache__/, .pyc, .log y .vscode/.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 321.63 Tm
+(\225  docs/arquitectura/git_workflow.md: recomienda ramas main, develop, feature/ y test/, pero no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 309.13 Tm
+(   documenta PRs, revisiones ni versionado.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 295.63 Tm
+(\225  docs/CHANGELOG.md: una secci\363n [Unreleased] con la estructura inicial.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 282.13 Tm
+(\225  No hay manifiesto global de dependencias, CI, especificaci\363n versionada o instrucciones) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 269.63 Tm
+(   completas de contribuci\363n identificadas.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 246.13 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 251.13 Tm
+(14. Decisiones que faltan antes de ampliar el desarrollo) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 225.13 Tm
+(1.  \277Cu\341l es la marca, modelo y revisi\363n exactos de la placa y qu\351 USB usa para programaci\363n?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 211.63 Tm
+(2.  \277La pantalla tiene controlador propio o se conecta al controlador principal? \277Qu\351 modelo,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 199.13 Tm
+(   interfaz y resoluci\363n?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 185.63 Tm
+(3.  \277Cu\341ntos motores/canales y qu\351 actuador f\355sico dispensa adhesivo?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 172.13 Tm
+(4.  \277Qu\351 modelos de TMC2209 y motores, corriente, UART y refrigeraci\363n se utilizar\341n?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 158.63 Tm
+(5.  \277Cu\341les son los modelos exactos de finales de carrera y sensor, salidas el\351ctricas, polaridad y) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 146.13 Tm
+(   tensi\363n?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 132.63 Tm
+(6.  \277Qu\351 tensiones/fuentes, fusibles, paro de emergencia, l\355mites el\351ctricos y conectores usa el) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 120.13 Tm
+(   sistema?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 106.63 Tm
+(7.  \277Qu\351 unidades, rango, precisi\363n y tolerancias se exigen para la dispensaci\363n?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 93.13 Tm
+(8.  \277Qu\351 protocolo y topolog\355a de comunicaci\363n se adoptar\341n? \277Serial TTL, USB u otro enlace?) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 9 de 11) Tj
+ET
+Q
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 25 0 R >>
+endobj
+25 0 obj
+<< /Length 6848 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 787.89 Tm
+(9.  \277Qu\351 criterios definen \223homed\224, calibraci\363n v\341lida, fallo enclavado y recuperaci\363n segura?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 774.39 Tm
+(10.  \277C\363mo y d\363nde se almacenar\341n los par\341metros, y c\363mo se actualizar\341n/versionar\341n?) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 760.89 Tm
+(Las respuestas deben salir del hardware real, requisitos del proceso, datasheets y revisi\363n de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 747.83 Tm
+(seguridad. No rellenar huecos con suposiciones.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 722.76 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 727.76 Tm
+(15. Plan de trabajo recomendado) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 696.76 Tm
+(Etapa A \227 restablecer una compilaci\363n reproducible) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 679.76 Tm
+(\225  Abrir firmware/controller como proyecto.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 666.26 Tm
+(\225  Ejecutar pio run despu\351s del cambio a DISABLED_STATE.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 652.76 Tm
+(\225  Resolver errores restantes sin cambiar la placa o quitar protecciones a ciegas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 639.26 Tm
+(\225  Registrar versi\363n de PlatformIO, plataforma/framework instalados y resultado de build.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 620.76 Tm
+(Etapa B \227 comunicaci\363n USB/serie sin potencia) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 603.76 Tm
+(\225  Identificar la placa f\355sica y su conector de programaci\363n.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 590.26 Tm
+(\225  Resolver el error de descriptor USB hasta obtener COM/USB reconocible.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 576.76 Tm
+(\225  Cargar firmware de diagn\363stico sin perif\351ricos de potencia.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 563.26 Tm
+(\225  Confirmar salida serie a 115200 y registrar evidencias.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 544.76 Tm
+(Etapa C \227 levantamiento de hardware y dise\361o de seguridad) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 527.76 Tm
+(\225  Fotografiar etiquetas y registrar part numbers.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 514.26 Tm
+(\225  Obtener datasheets de placa, driver, motor, sensor, display y fuente.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 500.76 Tm
+(\225  Crear inventario, pinout, esquema, matriz de tensiones y an\341lisis de riesgos.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 487.26 Tm
+(\225  Revisar niveles l\363gicos, protecciones, tierra y procedimiento de emergencia antes del cableado.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 468.76 Tm
+(Etapa D \227 especificaciones y software de bajo riesgo) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 451.76 Tm
+(\225  Especificar m\341quina de estados y transiciones permitidas.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 438.26 Tm
+(\225  Definir protocolo con framing/versionado/validaci\363n/timeout y errores.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 424.76 Tm
+(\225  Definir formato, unidades, rangos y persistencia de par\341metros.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 411.26 Tm
+(\225  Ampliar simulador y agregar pruebas unitarias/integraci\363n antes de hardware.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 392.76 Tm
+(Etapa E \227 integraci\363n secuencial de hardware) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 375.76 Tm
+(\225  Validar entradas/salidas sin actuadores y con alimentaci\363n limitada.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 362.26 Tm
+(\225  Probar sensores individualmente y estados de desconexi\363n/fallo.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 348.76 Tm
+(\225  Validar configuraci\363n del driver seg\372n datasheet, primero sin carga y despu\351s con motor de forma) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 336.26 Tm
+(   controlada.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 322.76 Tm
+(\225  Implementar homing con l\355mites y recovery seguros.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 309.26 Tm
+(\225  Integrar dispensaci\363n solo con criterios de calibraci\363n y aceptaci\363n cuantificables.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 295.76 Tm
+(En cada etapa, mantener actuadores inhibidos hasta que la etapa anterior se haya verificado y) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 282.70 Tm
+(documentado.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 257.63 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 262.63 Tm
+(16. Gu\355a corta para el desarrollador que recibe el proyecto) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 236.63 Tm
+(1.  Lee esta gu\355a y distingue c\363digo real de placeholders.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 223.13 Tm
+(2.  Abre firmware/controller, no la ra\355z, para el build de PlatformIO.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 209.63 Tm
+(3.  Ejecuta pio run; la \372ltima compilaci\363n conocida fall\363 por el macro DISABLED y el cambio a) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 197.13 Tm
+(   DISABLED_STATE debe verificarse.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 183.63 Tm
+(4.  No dependas de la placa hasta confirmar que Windows ya no muestra error de descriptor y que) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 171.13 Tm
+(   existe un puerto.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 157.63 Tm
+(5.  Mant\351n movimiento apagado. No escribas GPIO ni recomendaciones de cableado hasta identificar el) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 145.13 Tm
+(   hardware f\355sico.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 131.63 Tm
+(6.  Inspecciona archivos, compila y ejecuta la simulaci\363n antes de refactorizar m\363dulos.) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 118.13 Tm
+(7.  Cuando se implementen interfaces, a\361ade sus fuentes en las carpetas src/ que corresponden y) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 105.63 Tm
+(   pruebas automatizadas.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 10 de 11) Tj
+ET
+Q
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 27 0 R >>
+endobj
+27 0 obj
+<< /Length 5260 >>
+stream
+q
+0.82 0.87 0.90 RG
+52.0 806.89 m 543.28 806.89 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 814.89 Tm
+(VALVER SMART DISPENSER \267 TRASPASO T\311CNICO) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 62.00 787.89 Tm
+(8.  Actualiza documentaci\363n y changelog con decisiones verificadas; marca expresamente lo no) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 70.00 775.39 Tm
+(   probado.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 756.89 Tm
+(Prompt completo para iniciar una nueva conversaci\363n con otra IA) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 739.89 Tm
+(Contin\372a VALVER SMART DISPENSER bas\341ndote en el repositorio y en esta gu\355a integral. Primero) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 727.11 Tm
+(inspecciona el estado real de archivos y ejecuta/verifica la compilaci\363n desde) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 714.33 Tm
+(firmware/controller; no supongas que el rename DISABLED_STATE ya fue validado. La placa f\355sica) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 701.55 Tm
+(no est\341 confirmada y Windows report\363 \223Dispositivo USB desconocido \(Error de solicitud de) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 688.77 Tm
+(descriptor de dispositivo\)\224, as\355 que no afirmes que existe un COM. Mant\351n kMovementDisabled=true) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 675.99 Tm
+(y kMotorsAvailable=false. No inventes GPIO, cableado, modelo de display, motor ni corriente.) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 663.21 Tm
+(Explica claramente qu\351 est\341 implementado, qu\351 es una interfaz vac\355a y qu\351 dato real falta.) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 650.43 Tm
+(Prop\363n pasos peque\361os y comprobables, priorizando USB/serie, inventario/datasheets y seguridad.) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 637.65 Tm
+(Actualiza c\363digo, pruebas y documentaci\363n en conjunto; nunca habilites actuadores antes de) Tj
+ET
+0.090 0.200 0.300 rg
+BT
+/F1 9.00 Tf
+1 0 0 1 63.00 624.87 Tm
+(revisar pinout, homing, sensores, fallos y procedimiento de paro.) Tj
+ET
+0.920 0.950 0.970 rg
+47.00 600.09 501.28 25.00 re f
+0.090 0.200 0.300 rg
+BT
+/F2 17.00 Tf
+1 0 0 1 52.00 605.09 Tm
+(17. Inventario de fuentes para navegar el proyecto) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 574.09 Tm
+(Firmware de control) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 557.09 Tm
+(firmware/controller/platformio.ini; src/main.cpp; encabezados) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 544.03 Tm
+(include/config/{HardwareConfig,PinConfig,SystemConfig}.h,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 530.96 Tm
+(include/system/{SystemManager,SystemState}.h, include/motors/{MotorController,TMC2209Manager}.h,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 517.90 Tm
+(include/sensors/{EndstopManager,NeedleSensor}.h, include/safety/{FaultManager,SafetyManager}.h,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 504.83 Tm
+(include/dispensing/{DispenserChannel,DispensingManager}.h, include/calibration/CalibrationManager.h,) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 491.77 Tm
+(include/communication/{Protocol,SerialManager}.h, include/storage/SettingsManager.h.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 471.71 Tm
+(Interfaz) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 454.71 Tm
+(display/README.md; platformio.ini.example; src/main.cpp.example;) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 441.64 Tm
+(include/{ScreenManager,UIConfig,UIProtocol}.h; las siete carpetas de pantallas previstas.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 421.58 Tm
+(Pruebas y documentaci\363n) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 404.58 Tm
+(simulation/state_machine_simulator.py; simulation/README.md; carpetas) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 391.51 Tm
+(tests/{unit,integration,hardware}; documentaci\363n de) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 378.45 Tm
+(docs/{arquitectura,firmware,hardware,seguridad,pruebas} y docs/CHANGELOG.md.) Tj
+ET
+0.080 0.540 0.540 rg
+BT
+/F2 12.50 Tf
+1 0 0 1 52.00 358.39 Tm
+(Carpetas preparadas sin contenido de implementaci\363n localizado) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 341.39 Tm
+(config/{defaults,examples}, hardware/{datasheets,mechanical,schematics,wiring},) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 328.32 Tm
+(scripts/{build,flash,validation}, shared/{constants,models,protocols},) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 315.26 Tm
+(simulation/{motor_simulator,protocol_simulator,sensor_simulator}, tests/{hardware,integration,unit},) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 302.19 Tm
+(tools/{calibration_tools,diagnostics,serial_monitor}, display/assets/{fonts,icons,images} y) Tj
+ET
+0.150 0.190 0.230 rg
+BT
+/F1 9.20 Tf
+1 0 0 1 52.00 289.13 Tm
+(display/themes.) Tj
+ET
+0.82 0.87 0.90 RG
+52.0 34 m 543.28 34 l S
+0.390 0.450 0.500 rg
+BT
+/F1 8 Tf
+1 0 0 1 52.0 21 Tm
+(Documento de trabajo \267 verificar hardware antes de cablear) Tj
+1 0 0 1 488.28 21 Tm
+(P\341gina 11 de 11) Tj
+ET
+Q
+endstream
+endobj
+xref
+0 28
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000191 00000 n 
+0000000288 00000 n 
+0000000390 00000 n 
+0000000485 00000 n 
+0000000637 00000 n 
+0000001970 00000 n 
+0000002122 00000 n 
+0000009474 00000 n 
+0000009628 00000 n 
+0000016732 00000 n 
+0000016886 00000 n 
+0000023625 00000 n 
+0000023779 00000 n 
+0000030467 00000 n 
+0000030621 00000 n 
+0000037986 00000 n 
+0000038140 00000 n 
+0000044822 00000 n 
+0000044976 00000 n 
+0000051946 00000 n 
+0000052100 00000 n 
+0000059795 00000 n 
+0000059949 00000 n 
+0000066850 00000 n 
+0000067004 00000 n 
+trailer
+<< /Size 28 /Root 1 0 R >>
+startxref
+72317
+%%EOF

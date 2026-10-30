@@ -4,6 +4,10 @@ namespace valver {
 class ScreenManager {
 public:
   ScreenManager();
-  void initialize();
+  bool initialize();
+  void update();
+
+private:
+  bool initialized_ = false;
 };
 }

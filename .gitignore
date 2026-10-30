@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 *.log
 .vscode/
+.pio/
+.vscode/
+*.log
+VALVER_SMART_DISPENSER_AI_PACKAGE.zip

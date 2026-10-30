@@ -2,5 +2,5 @@
 
 namespace valver {
 constexpr const char* kUiProjectName = "VALVER SMART DISPENSER";
-constexpr bool kDisplayUiEnabled = false;
+constexpr bool kDisplayUiEnabled = true;
 }
