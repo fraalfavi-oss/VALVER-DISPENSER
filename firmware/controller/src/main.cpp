@@ -11,6 +11,11 @@ constexpr uint8_t Z1_STEP=4, Z1_DIR=5, Z1_EN=6;
 constexpr uint8_t Z2_STEP=7, Z2_DIR=15, Z2_EN=16;
 constexpr uint32_t TEST_PERIOD_MS=100;
 constexpr uint8_t TEST_PULSES=12;
+constexpr uint32_t JOG_HEARTBEAT_TIMEOUT_MS=350;
+constexpr uint32_t JOG_ABSOLUTE_LIMIT_MS=10000;
+constexpr uint32_t JOG_STEP_INTERVAL_MS=80; // GPIO only: EN stays HIGH
+struct JogState {bool active=false;uint8_t axis=0;bool up=false;uint32_t started=0;uint32_t lastHeartbeat=0;uint32_t nextStep=0;unsigned long id=0;};
+JogState jog;
 char incoming[256];
 size_t incomingLength=0;
 bool tooLong=false;
@@ -47,7 +52,13 @@ bool readCommand(const char* json,char* out,size_t cap) {
   if(*p!='"'||n==0)return false;
   out[n]=0;return true;
 }
+void stopJog() {
+  jog.active=false;
+  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
+  digitalWrite(Z1_EN,HIGH);digitalWrite(Z2_EN,HIGH);
+}
 void stopTest() {
+  stopJog();
   test.active=false;
   digitalWrite(Z1_STEP,LOW);
   digitalWrite(Z2_STEP,LOW);
@@ -75,6 +86,25 @@ void dispatch(const char* data) {
     errorReply(id,"HARDWARE_NOT_VALIDATED");
   } else if(strcmp(cmd,"JOG_STOP")==0){
     disarm(); selectedAxis=0; replySelection(id);
+  } else if(strcmp(cmd,"JOG_GPIO_START_Z1_UP")==0 || strcmp(cmd,"JOG_GPIO_START_Z1_DOWN")==0 ||
+            strcmp(cmd,"JOG_GPIO_START_Z2_UP")==0 || strcmp(cmd,"JOG_GPIO_START_Z2_DOWN")==0){
+    if(jog.active||test.active){errorReply(id,"BUSY");return;}
+    if(!armed||millis()-armedAt>ARM_TIMEOUT_MS){disarm();errorReply(id,"NOT_ARMED");return;}
+    const uint8_t axis=strstr(cmd,"Z1")?1:2;
+    if(axis!=selectedAxis){errorReply(id,"CHANNEL_LOCKED");return;}
+    jog.axis=axis;jog.up=strstr(cmd,"_UP")!=nullptr;
+    jog.active=true;jog.started=millis();jog.lastHeartbeat=millis();jog.nextStep=millis();jog.id=id;
+    armed=false;
+    digitalWrite(axis==1?Z1_DIR:Z2_DIR,jog.up?HIGH:LOW);
+    Serial.printf("{\"id\":%lu,\"status\":\"ACCEPTED\",\"mode\":\"GPIO_JOG_ONLY\",\"axis\":\"Z%u\",\"direction\":\"%s\",\"drivers_enabled\":false}\n",id,axis,jog.up?"UP":"DOWN");
+  } else if(strcmp(cmd,"JOG_GPIO_HEARTBEAT")==0){
+    if(!jog.active){errorReply(id,"NO_JOG");return;}
+    if(millis()-jog.started>JOG_ABSOLUTE_LIMIT_MS){stopJog();errorReply(id,"JOG_MAX_DURATION");return;}
+    jog.lastHeartbeat=millis();
+    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"mode\":\"GPIO_JOG_ONLY\"}\n",id);
+  } else if(strcmp(cmd,"JOG_GPIO_STOP")==0){
+    stopJog();
+    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"JOG_STOPPED\",\"drivers_enabled\":false}\n",id);
   } else if(strcmp(cmd,"GET_INFO")==0){
     Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"%s\",\"mode\":\"GPIO_BENCH_TEST\"}\n",id,valver::kFirmwareVersion);
   } else if(strcmp(cmd,"SELECT_Z1")==0 || strcmp(cmd,"SELECT_Z2")==0){
@@ -84,20 +114,20 @@ void dispatch(const char* data) {
   } else if(strcmp(cmd,"DISABLE_CHANNELS")==0){
     disarm(); selectedAxis=0; replySelection(id);
   } else if(strcmp(cmd,"ARM_TEST")==0){
-    if(test.active){errorReply(id,"BUSY");return;}
+    if(test.active||jog.active){errorReply(id,"BUSY");return;}
     if(selectedAxis==0){errorReply(id,"NO_CHANNEL");return;}
     armed=true;armedAt=millis();replySelection(id);
   } else if(strcmp(cmd,"DISARM_TEST")==0){
     disarm();replySelection(id);
   } else if(strcmp(cmd,"GET_STATUS")==0){
-    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"GPIO_TEST_ONLY\",\"motors_enabled\":false,\"vm_required\":false,\"drivers_enabled\":false,\"test_active\":%s}\n",id,test.active?"true":"false");
+    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"GPIO_TEST_ONLY\",\"motors_enabled\":false,\"vm_required\":false,\"drivers_enabled\":false,\"test_active\":%s,"jog_active\":%s}\n",id,test.active?"true":"false",jog.active?"true":"false");
     replySelection(id);
   } else if(strcmp(cmd,"STOP_TEST")==0){
     disarm(); selectedAxis=0;
     Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"STOPPED\"}\n",id);
   } else if(strcmp(cmd,"TEST_Z1_UP")==0 || strcmp(cmd,"TEST_Z1_DOWN")==0 ||
             strcmp(cmd,"TEST_Z2_UP")==0 || strcmp(cmd,"TEST_Z2_DOWN")==0){
-    if(test.active){errorReply(id,"BUSY");return;}
+    if(test.active||jog.active){errorReply(id,"BUSY");return;}
     if(!armed || millis()-armedAt>ARM_TIMEOUT_MS){disarm();errorReply(id,"NOT_ARMED");return;}
     const uint8_t requested=strstr(cmd,"Z1")?1:2;
     if(requested!=selectedAxis){errorReply(id,"CHANNEL_LOCKED");return;}
@@ -114,6 +144,20 @@ void dispatch(const char* data) {
     Serial.printf("{\"id\":%lu,\"status\":\"ACCEPTED\",\"test\":\"GPIO_ONLY\",\"axis\":\"Z%d\",\"direction\":\"%s\"}\n",id,test.axis,up?"UP":"DOWN");
   } else {
     errorReply(id,"MOTORS_DISABLED");
+  }
+}
+void serviceJog(){
+  if(!jog.active)return;
+  const uint32_t now=millis();
+  if(now-jog.lastHeartbeat>JOG_HEARTBEAT_TIMEOUT_MS||now-jog.started>JOG_ABSOLUTE_LIMIT_MS){
+    const unsigned long id=jog.id;stopJog();
+    Serial.printf("{\"id\":%lu,\"status\":\"DONE\",\"mode\":\"GPIO_JOG_ONLY\",\"reason\":\"WATCHDOG_OR_LIMIT\",\"drivers_enabled\":false}\n",id);
+    return;
+  }
+  if((int32_t)(now-jog.nextStep)>=0){
+    const uint8_t pin=jog.axis==1?Z1_STEP:Z2_STEP;
+    digitalWrite(pin,HIGH);delayMicroseconds(30);digitalWrite(pin,LOW);
+    jog.nextStep=millis()+JOG_STEP_INTERVAL_MS;
   }
 }
 void serviceTest(){
@@ -156,4 +200,5 @@ void loop() {
     }
   }
   serviceTest();
+  serviceJog();
 }
