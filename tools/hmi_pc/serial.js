@@ -1,11 +1,14 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null;
 const el=id=>document.getElementById(id);
 function resetLoad(axis=selected){
- loadSamples=[];loadBaselineSamples=[];loadBaseline=null;
+ loadSamples=[];loadBaselineSamples=[];loadBaseline=null;loadSuggestedThreshold=null;
  el('loadRaw').textContent='—';el('loadPercent').textContent='—';
  el('loadBaseline').textContent='Referencia sin calibrar';
  el('loadDirection').textContent='Z'+(axis||'?')+' · Sin lectura';
  el('loadFill').style.width='0%';
+ el('loadDelta').textContent='Variación SG: —';
+ el('loadSuggested').textContent='Umbral: esperando referencia en vacío';
+ el('stallSuggest').disabled=true;
  el('loadStatus').textContent='Esperando lecturas válidas';
  drawLoadChart();
 }
@@ -39,11 +42,28 @@ function receiveLoad(d){
  }
  if(loadBaseline===null){
    el('loadPercent').textContent='—';
+   el('loadDelta').textContent='Variación SG: —';
    el('loadBaseline').textContent='Tomando referencia en vacío ('+loadBaselineSamples.length+'/5)';
    el('loadStatus').textContent=raw===0?'Sin lectura útil / SG_RESULT = 0':'Midiendo referencia';
    return;
  }
- const relative=Math.max(0,Math.min(100,Math.round((loadBaseline-raw)/Math.max(1,loadBaseline)*100)));
+ const delta=loadBaseline-raw;
+ el('loadDelta').textContent='Variación SG: '+(delta>=0?'+':'')+delta+' (positivo = más carga)';
+ const relative=Math.max(0,Math.min(100,Math.round(delta/Math.max(1,loadBaseline)*100)));
+ // This is a provisional 10% drop from the unloaded SG_RESULT, not a force setpoint.
+ // Hardware SGTHRS is limited to 255, i.e. trip level <= 510.
+ if(loadBaseline>=20){
+  loadSuggestedThreshold=Math.min(255,Math.max(0,Math.round(loadBaseline*0.90/2)));
+  const suggestedTrip=2*loadSuggestedThreshold;
+  const limited=loadBaseline*0.9>510;
+  el('loadSuggested').textContent='Umbral orientativo SGTHRS='+loadSuggestedThreshold+
+    ' (paro si SG_RESULT ≤ '+suggestedTrip+')'+(limited?' · LIMITADO por hardware':'');
+  el('stallSuggest').disabled=testing||!verified;
+ }else{
+  loadSuggestedThreshold=null;
+  el('loadSuggested').textContent='Referencia demasiado baja para sugerir sensibilidad';
+  el('stallSuggest').disabled=true;
+ }
  el('loadPercent').textContent=relative+'%';
  el('loadBaseline').textContent='Referencia libre: '+loadBaseline+' · índice relativo';
  el('loadStatus').textContent='Z'+axis+' · LECTURA EN VIVO';
@@ -66,6 +86,7 @@ function update(){
  el('stallEnable').disabled=!axisReady||!stallData['z'+selected+'_uart']||stallData['z'+selected+'_enabled'];
  el('stallDisable').disabled=!axisReady||!stallData['z'+selected+'_enabled'];
  el('stallSensitivity').disabled=!axisReady;
+ el('stallSuggest').disabled=!axisReady||loadSuggestedThreshold===null;
  for(const id of ['stallMinus','stallPlus','stallNumber'])el(id).disabled=!axisReady;
  for(const id of ['choose1','choose2','disable'])el(id).disabled=!connected||!pingOK||testing;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
@@ -186,6 +207,7 @@ el('stallNumber').onchange=()=>setStallValue(el('stallNumber').value);
 el('stallMinus').onclick=()=>setStallValue(Number(el('stallSensitivity').value)-1);
 el('stallPlus').onclick=()=>setStallValue(Number(el('stallSensitivity').value)+1);
 el('stallApply').onclick=()=>{if(selected)send('SET_STALL_SENSITIVITY',{axis:selected,threshold:Number(el('stallSensitivity').value)})};
+el('stallSuggest').onclick=()=>{if(!selected||loadSuggestedThreshold===null||jogHeld)return;setStallValue(loadSuggestedThreshold);send('SET_STALL_SENSITIVITY',{axis:selected,threshold:loadSuggestedThreshold});};
 el('stallEnable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:1}).then(()=>send('GET_SENSORS'))};
 el('stallDisable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:0}).then(()=>send('GET_SENSORS'))};
 el('readiness').onclick=()=>send('GET_READINESS');
