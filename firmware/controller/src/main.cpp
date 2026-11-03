@@ -156,7 +156,7 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.0-live-load-monitor\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.1-z1-diagnostics\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -259,9 +259,10 @@ void serviceStall(){
  }
  StallAxis &s=stall[axis];
  s.result=stallDriver(axis).SG_RESULT();
+ const uint32_t z1Tstep=axis==1?stallDriverZ1.TSTEP():0; // diagnostic read of Z1 actual step interval
  if(now-stallLastTelemetry>=250){
    stallLastTelemetry=now;
-   Serial.printf("{\"status\":\"SAMPLE\",\"axis\":%u,\"sg_result\":%u,\"threshold\":%u,\"speed_sps\":%u,\"direction\":\"%s\",\"millis\":%lu}\n",axis,s.result,s.threshold,(unsigned)jog.actualSpeedSps,jog.up?"UP":"DOWN",(unsigned long)now);
+   Serial.printf("{\"status\":\"SAMPLE\",\"axis\":%u,\"sg_result\":%u,\"threshold\":%u,\"speed_sps\":%u,\"direction\":\"%s\",\"millis\":%lu,\"tstep\":%lu}\n",axis,s.result,s.threshold,(unsigned)jog.actualSpeedSps,jog.up?"UP":"DOWN",(unsigned long)now,(unsigned long)z1Tstep);
  }
  if(s.result<=2U*s.threshold){if(s.lowReadings<3)s.lowReadings++;}
  else s.lowReadings=0;
