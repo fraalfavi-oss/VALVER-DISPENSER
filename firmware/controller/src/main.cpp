@@ -51,7 +51,7 @@ bool configureStepClock(){
   for(uint8_t axis=1;axis<=2;axis++){
     ledc_timer_config_t timer={};
     timer.speed_mode=STEP_MODE;
-    timer.duty_resolution=LEDC_TIMER_8_BIT;
+    timer.duty_resolution=LEDC_TIMER_13_BIT; // 80 Hz at APB/XTAL clock needs enough divider resolution
     timer.timer_num=stepTimer(axis);
     timer.freq_hz=80;
     timer.clk_cfg=LEDC_AUTO_CLK; // compatible with ESP-IDF bundled by PlatformIO
@@ -78,7 +78,7 @@ bool setStepClock(uint8_t axis,uint16_t hz){
   return ledc_set_freq(STEP_MODE,stepTimer(axis),hz)!=0;
 }
 void startStepClock(uint8_t axis){
-  ledc_set_duty(STEP_MODE,stepChannel(axis),128);
+  ledc_set_duty(STEP_MODE,stepChannel(axis),4096); // 50% of 13-bit PWM
   ledc_update_duty(STEP_MODE,stepChannel(axis));
 }
 uint16_t speedSps=160;
@@ -156,7 +156,7 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.6.0-smooth-step\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.6.1-step-clock-fix\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
