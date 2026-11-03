@@ -80,9 +80,11 @@ void dispatch(const char* data) {
   }
   if(strcmp(cmd,"PING")==0){
     Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
+  } else if(strcmp(cmd,"GET_READINESS")==0){
+    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"mode\":\"SAFE_GPIO_ONLY\",\"motor_motion_ready\":false,\"drivers_enabled\":false,\"current_verified\":false,\"endstops_verified\":false,\"uart_verified\":false,\"optical_verified\":false,\"stallguard_verified\":false,\"reason\":\"COMMISSIONING_REQUIRED\"}\n",id);
   } else if(strcmp(cmd,"GET_SENSORS")==0){
     Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"optical\":{\"model\":\"EE-SX671\",\"configured\":false,\"connected\":false,\"triggered\":null},\"stallguard\":{\"model\":\"TMC2209 StallGuard4\",\"z1_uart\":false,\"z2_uart\":false,\"z1_stall\":null,\"z2_stall\":null},\"calibration_enabled\":false}\n",id);
-  } else if(strcmp(cmd,"CALIBRATE_TIP")==0 || strcmp(cmd,"CALIBRATE_TABLE")==0 || strcmp(cmd,"JOG_START")==0 || strcmp(cmd,"JOG_KEEPALIVE")==0){
+  } else if(strcmp(cmd,"CALIBRATE_TIP")==0 || strcmp(cmd,"CALIBRATE_TABLE")==0 || strcmp(cmd,"JOG_START")==0 || strcmp(cmd,"JOG_KEEPALIVE")==0 || strcmp(cmd,"MOTOR_ENABLE")==0 || strcmp(cmd,"MOVE_TO_REST")==0 || strcmp(cmd,"MOVE_TO_DISPENSE")==0){
     errorReply(id,"HARDWARE_NOT_VALIDATED");
   } else if(strcmp(cmd,"JOG_STOP")==0){
     disarm(); selectedAxis=0; replySelection(id);
