@@ -29,6 +29,14 @@ struct StallAxis {
 };
 StallAxis stall[3];
 uint32_t stallLastPoll=0,stallLastTelemetry=0;
+TMC2209Stepper &stallDriver(uint8_t axis){return axis==1?stallDriverZ1:stallDriverZ2;}
+bool probeStall(uint8_t axis){
+  // 0x21 is the TMC2209 IOIN version code. No response means no valid feedback.
+  bool ok=stallDriver(axis).version()==0x21;
+  stall[axis].uart=ok;
+  if(!ok){stall[axis].enabled=false;stall[axis].monitoring=false;}
+  return ok;
+}
 struct DriverDiag { uint32_t gconf=0, chopconf=0, iholdIrun=0, pwmconf=0, tstep=0; uint16_t sg=0; bool ok=false; };
 DriverDiag diagnostics[3];
 // Read-only register comparison. This deliberately never copies driver current settings.
@@ -44,14 +52,6 @@ DriverDiag readDriverDiag(uint8_t axis){
   d.tstep=driver.TSTEP();
   d.sg=driver.SG_RESULT();
   return d;
-}
-TMC2209Stepper &stallDriver(uint8_t axis){return axis==1?stallDriverZ1:stallDriverZ2;}
-bool probeStall(uint8_t axis){
-  // 0x21 is the TMC2209 IOIN version code. No response means no valid feedback.
-  bool ok=stallDriver(axis).version()==0x21;
-  stall[axis].uart=ok;
-  if(!ok){stall[axis].enabled=false;stall[axis].monitoring=false;}
-  return ok;
 }
 constexpr uint16_t MIN_SPEED_SPS=20, MAX_SPEED_SPS=1600;
 constexpr float JOG_ACCEL_SPS2=600.0f;
