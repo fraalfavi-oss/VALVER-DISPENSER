@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve();
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false;
 const el=id=>document.getElementById(id);
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
 function update(){
@@ -9,18 +9,21 @@ function update(){
  el('connect').disabled=connected;
  el('stop').disabled=!connected;
  el('speed').disabled=!ready;
- for(const id of ['choose1','choose2','disable'])el(id).disabled=!ready;
+ for(const id of ['choose1','choose2','disable'])el(id).disabled=!connected||!pingOK||testing;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
  el('armState').textContent=testing?'MOVIENDO · Z'+selected:'MOTORES DETENIDOS';
  for(const n of [1,2]){
   el('card'+n).classList.toggle('selected',selected===n);
   el('card'+n).classList.toggle('locked',selected!==n);
  }
- document.querySelectorAll('.test').forEach(b=>b.disabled=(!jogHeld&&!ready)||!b.dataset.cmd.includes('Z'+selected));
+ document.querySelectorAll('.test').forEach(b=>b.disabled=(!jogHeld&&(!ready||selected===0))||!b.dataset.cmd.includes('Z'+selected));
 }
 function response(data){
- if(data.reply==='PONG'){pingOK=true;log('Comunicación verificada con PONG');}
- if(data.state==='HOLD_MOTOR_JOG'){verified=true;}
+ if(data.reply==='PONG'){pingOK=true;log('Comunicación verificada con PONG');send('GET_STATUS');}
+ if(data.state==='HOLD_MOTOR_JOG'){
+   verified=true;
+   if(!autoSelected&&selected===0){autoSelected=true;send('SELECT_Z1');log('Z1 seleccionado automáticamente. Puedes cambiar a Z2.');}
+ }
  if(Number.isFinite(data.speed_sps)){el('speed').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);}
  if(typeof data.selected_axis==='number')selected=data.selected_axis;
  if(data.optical&&data.stallguard)el('sensorReadout').textContent='Sensor óptico: pendiente · StallGuard4: pendiente';
@@ -38,7 +41,7 @@ async function readLoop(){const decoder=new TextDecoder();
   if(rx.length>4096){log('RX demasiado largo');rx='';}
   let pos;while((pos=rx.indexOf('\n'))>=0){
    const line=rx.slice(0,pos).trim();rx=rx.slice(pos+1);if(!line)continue;
-   try{const d=JSON.parse(line);log('RX ← '+line);response(d)}catch{log('RX texto ← '+line);if(line.includes('Brownout')||line.includes('ESP-ROM:')){verified=false;pingOK=false;selected=0;endJog();update();}}
+   try{const d=JSON.parse(line);log('RX ← '+line);response(d)}catch{log('RX texto ← '+line);if(line.includes('Brownout')||line.includes('ESP-ROM:')){verified=false;pingOK=false;selected=0;autoSelected=false;endJog();update();}}
   }
  }}catch(e){log('Error de lectura: '+e.message)}
  finally{if(connected)await disconnect()}
@@ -48,12 +51,12 @@ async function connect(){
  try{
   port=await navigator.serial.requestPort();await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;pingOK=false;verified=false;selected=0;update();
+  connected=true;pingOK=false;verified=false;selected=0;autoSelected=false;update();
   log('COM abierto');void readLoop();
  }catch(e){log('Error de conexión: '+e.message);await disconnect();}
 }
 async function disconnect(){
- if(closing)return;endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;update();
+ if(closing)return;endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;autoSelected=false;update();
  try{await reader?.cancel()}catch{}
  try{reader?.releaseLock()}catch{}reader=null;
  try{writer?.releaseLock()}catch{}writer=null;
