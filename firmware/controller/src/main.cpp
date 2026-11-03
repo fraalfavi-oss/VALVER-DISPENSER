@@ -79,14 +79,13 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"GET_INFO")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.3.0-hold-speed\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
-   Serial.printf("{\\"id\\":%lu,\\"status\\":\\"OK\\",\\"state\\":\\"HOLD_MOTOR_JOG\\",\\"motor_motion_ready\\":true,\\"motors_enabled\\":%s,\\"drivers_enabled\\":%s,\\"jog_active\\":%s,\\"selected_axis\\":%u,\\"speed_sps\\":%u,\\"speed_min_sps\\":%u,\\"speed_max_sps\\":%u,\\"limits_verified_by_firmware\\":false}\\n",
-     id,jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":true,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
    unsigned long requested=0;
    if(!readSpeed(data,requested)||requested<MIN_SPEED_SPS||requested>MAX_SPEED_SPS){replyError(id,"INVALID_SPEED");return;}
    speedSps=(uint16_t)requested;stepIntervalUs=1000000UL/speedSps;
-   Serial.printf("{\\"id\\":%lu,\\"status\\":\\"OK\\",\\"speed_sps\\":%u}\\n",id,speedSps);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"speed_sps\":%u}\n",id,speedSps);
  }else if(strcmp(cmd,"GET_SENSORS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"optical\":{\"model\":\"EE-SX671\",\"configured\":false,\"triggered\":null},\"stallguard\":{\"model\":\"TMC2209 StallGuard4\",\"z1_uart\":false,\"z2_uart\":false},\"calibration_enabled\":false}\n",id);
  }else if(strcmp(cmd,"SELECT_Z1")==0 || strcmp(cmd,"SELECT_Z2")==0){
