@@ -23,7 +23,7 @@ HardwareSerial stallSerialZ1(1),stallSerialZ2(2);
 TMC2209Stepper stallDriverZ1(&stallSerialZ1,0.11f,0);
 TMC2209Stepper stallDriverZ2(&stallSerialZ2,0.11f,0);
 struct StallAxis {
-  bool uart=false,enabled=false;
+  bool uart=false,enabled=false,monitoring=false;
   uint8_t threshold=40,lowReadings=0;
   uint16_t result=0;
 };
@@ -34,7 +34,7 @@ bool probeStall(uint8_t axis){
   // 0x21 is the TMC2209 IOIN version code. No response means no valid feedback.
   bool ok=stallDriver(axis).version()==0x21;
   stall[axis].uart=ok;
-  if(!ok)stall[axis].enabled=false;
+  if(!ok){stall[axis].enabled=false;stall[axis].monitoring=false;}
   return ok;
 }
 constexpr uint16_t MIN_SPEED_SPS=20, MAX_SPEED_SPS=1600;
@@ -156,7 +156,7 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.6.2-step-clock-result-fix\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.0-live-load-monitor\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -165,6 +165,18 @@ void dispatch(const char* data) {
    if(!readSpeed(data,requested)||requested<MIN_SPEED_SPS||requested>MAX_SPEED_SPS){replyError(id,"INVALID_SPEED");return;}
    speedSps=(uint16_t)requested;stepIntervalUs=1000000UL/speedSps;
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"speed_sps\":%u}\n",id,speedSps);
+ }else if(strcmp(cmd,"MONITOR_STALL")==0){
+   if(jog.active){replyError(id,"STOP_BEFORE_CONFIG");return;}
+   unsigned long axis=0;
+   if(!readUIntField(data,"axis",axis)||axis<1||axis>2){replyError(id,"BAD_AXIS");return;}
+   if(!probeStall((uint8_t)axis)){replyError(id,"UART_NOT_CONNECTED");return;}
+   auto &d=stallDriver((uint8_t)axis);
+   d.pdn_disable(true);
+   d.en_spreadCycle(false);
+   d.TCOOLTHRS(0xFFFFF);
+   d.SGTHRS(stall[axis].threshold);
+   stall[axis].monitoring=true;  // Monitor only: DOES NOT enable force-stop
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"axis\":%lu,\"monitoring\":true,\"stall_enabled\":%s}\n",id,axis,stall[axis].enabled?"true":"false");
  }else if(strcmp(cmd,"SET_STALL_SENSITIVITY")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_CONFIG");return;}
    unsigned long axis=0,threshold=0;
@@ -183,13 +195,15 @@ void dispatch(const char* data) {
      d.en_spreadCycle(false); // StallGuard4 requires StealthChop
      d.TCOOLTHRS(0xFFFFF);
      d.SGTHRS(stall[axis].threshold);
+     stall[axis].monitoring=true;
    }
    stall[axis].enabled=enabled!=0;
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"axis\":%lu,\"stall_enabled\":%s}\n",id,axis,stall[axis].enabled?"true":"false");
  }else if(strcmp(cmd,"GET_SENSORS")==0){
    if(!jog.active){probeStall(1);probeStall(2);}
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"optical\":{\"configured\":false},\"stallguard\":{\"model\":\"TMC2209 StallGuard4\",\"z1_uart\":%s,\"z2_uart\":%s,\"z1_enabled\":%s,\"z2_enabled\":%s,\"z1_threshold\":%u,\"z2_threshold\":%u,\"z1_result\":%u,\"z2_result\":%u,\"min_speed_sps\":%u},\"calibration_enabled\":false}\n",
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"optical\":{\"configured\":false},\"stallguard\":{\"model\":\"TMC2209 StallGuard4\",\"z1_uart\":%s,\"z2_uart\":%s,\"z1_enabled\":%s,\"z2_enabled\":%s,\"z1_monitoring\":%s,\"z2_monitoring\":%s,\"z1_threshold\":%u,\"z2_threshold\":%u,\"z1_result\":%u,\"z2_result\":%u,\"min_speed_sps\":%u},\"calibration_enabled\":false}\n",
    id,stall[1].uart?"true":"false",stall[2].uart?"true":"false",stall[1].enabled?"true":"false",stall[2].enabled?"true":"false",
+   stall[1].monitoring?"true":"false",stall[2].monitoring?"true":"false",
    stall[1].threshold,stall[2].threshold,stall[1].result,stall[2].result,STALL_MIN_SPEED_SPS);
  }else if(strcmp(cmd,"SELECT_Z1")==0 || strcmp(cmd,"SELECT_Z2")==0){
    stopJog();selectedAxis=strcmp(cmd,"SELECT_Z1")==0?1:2;replySelection(id);
@@ -229,7 +243,7 @@ void dispatch(const char* data) {
  }
 }
 void serviceStall(){
- if(!jog.active || !stall[jog.axis].uart)return; // monitor load even if automatic stop is disabled
+ if(!jog.active || !stall[jog.axis].uart || !stall[jog.axis].monitoring)return; // live telemetry independent of force-stop
  const uint32_t now=millis();
  const uint8_t axis=jog.axis;
  if(jog.actualSpeedSps<STALL_MIN_SPEED_SPS || now-jog.started<STALL_START_IGNORE_MS)return;
@@ -247,7 +261,7 @@ void serviceStall(){
  s.result=stallDriver(axis).SG_RESULT();
  if(now-stallLastTelemetry>=250){
    stallLastTelemetry=now;
-   Serial.printf("{\"status\":\"SAMPLE\",\"axis\":%u,\"sg_result\":%u,\"threshold\":%u,\"speed_sps\":%u}\n",axis,s.result,s.threshold,(unsigned)jog.actualSpeedSps);
+   Serial.printf("{\"status\":\"SAMPLE\",\"axis\":%u,\"sg_result\":%u,\"threshold\":%u,\"speed_sps\":%u,\"direction\":\"%s\",\"millis\":%lu}\n",axis,s.result,s.threshold,(unsigned)jog.actualSpeedSps,jog.up?"UP":"DOWN",(unsigned long)now);
  }
  if(s.result<=2U*s.threshold){if(s.lowReadings<3)s.lowReadings++;}
  else s.lowReadings=0;
