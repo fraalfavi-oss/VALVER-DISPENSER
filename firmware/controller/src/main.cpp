@@ -259,8 +259,8 @@ void serviceStall(){
  }
  StallAxis &s=stall[axis];
  s.result=stallDriver(axis).SG_RESULT();
- const uint32_t z1Tstep=axis==1?stallDriverZ1.TSTEP():0; // diagnostic read of Z1 actual step interval
  if(now-stallLastTelemetry>=250){
+   const uint32_t z1Tstep=axis==1?stallDriverZ1.TSTEP():0; // Z1-only diagnostic, rate-limited to telemetry
    stallLastTelemetry=now;
    Serial.printf("{\"status\":\"SAMPLE\",\"axis\":%u,\"sg_result\":%u,\"threshold\":%u,\"speed_sps\":%u,\"direction\":\"%s\",\"millis\":%lu,\"tstep\":%lu}\n",axis,s.result,s.threshold,(unsigned)jog.actualSpeedSps,jog.up?"UP":"DOWN",(unsigned long)now,(unsigned long)z1Tstep);
  }
