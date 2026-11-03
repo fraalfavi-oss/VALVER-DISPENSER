@@ -85,6 +85,7 @@ function update(){
  el('connect').disabled=connected;
  el('stop').disabled=!connected;
  el('speed').disabled=!ready;
+ el('diagCompare').disabled=!ready || jogHeld;
  for(const id of ['speedMinus','speedPlus','speedNumber'])el(id).disabled=!ready;
  const axisReady=ready&&selected>0;
  el('stallApply').disabled=!axisReady;
@@ -121,6 +122,13 @@ function response(data){
  if(typeof data.selected_axis==='number'){
   selected=data.selected_axis;
   if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallNumber').value=el('stallSensitivity').value;el('stallValue').textContent=el('stallSensitivity').value;}
+ }
+ if(data.driver_diag){
+   const a=data.driver_diag.z1,b=data.driver_diag.z2;
+   const diffs=['gconf','chopconf','ihold_irun','pwmconf'].filter(k=>a[k]!==b[k]);
+   const compare=diffs.length?'REGISTROS DIFERENTES: '+diffs.join(', '):'Configuración leída igual en ambos';
+   el('diagCompareResult').textContent=compare+' · SG Z1='+a.sg_result+' / Z2='+b.sg_result;
+   log('DIAGNÓSTICO TMC2209: '+JSON.stringify(data.driver_diag));
  }
  if(data.stallguard){
   stallData={...stallData,...data.stallguard};
@@ -206,6 +214,7 @@ el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
 el('sensors').onclick=()=>send('GET_SENSORS');
+el('diagCompare').onclick=()=>send('DIAG_TMC');
 function setStallValue(v){const n=Math.max(0,Math.min(255,Math.round(Number(v)||0)));el('stallSensitivity').value=String(n);el('stallNumber').value=String(n);el('stallValue').textContent=String(n);}
 el('loadGain').oninput=()=>{if(!selected)return;loadGains[selected]=Number(el('loadGain').value);el('loadGainValue').textContent=loadGains[selected]+'×';};
 el('stallSensitivity').oninput=()=>setStallValue(el('stallSensitivity').value);
