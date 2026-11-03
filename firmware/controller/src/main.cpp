@@ -11,7 +11,8 @@ namespace {
 constexpr uint8_t Z1_STEP=4,Z1_DIR=5,Z1_EN=6;
 constexpr uint8_t Z2_STEP=7,Z2_DIR=15,Z2_EN=16;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS=350;
-constexpr uint16_t MIN_SPEED_SPS=40, MAX_SPEED_SPS=600;
+constexpr uint16_t MIN_SPEED_SPS=20, MAX_SPEED_SPS=1600;
+constexpr float JOG_ACCEL_SPS2=600.0f; // smooth start, avoid instantaneous high-speed step changes
 uint16_t speedSps=160;
 uint32_t stepIntervalUs=1000000UL/160;
 struct JogState {
@@ -20,6 +21,7 @@ struct JogState {
   bool up=false;
   uint32_t lastHeartbeat=0,nextStepUs=0;
   uint32_t pulses=0;
+  float actualSpeedSps=0.0f;
   unsigned long id=0;
 } jog;
 uint8_t selectedAxis=0;
@@ -77,7 +79,7 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.3.0-hold-speed\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.4.0-speed-ramp\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":true,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -104,6 +106,7 @@ void dispatch(const char* data) {
    delayMicroseconds(20); // DIR setup prior to driver enable/STEP
    jog.axis=axis;jog.up=up;jog.lastHeartbeat=millis();
    jog.nextStepUs=micros()+1500;jog.pulses=0;jog.id=id;
+   jog.actualSpeedSps=(float)(speedSps<80?speedSps:80);
    jog.active=true;
    digitalWrite(axis==1?Z1_EN:Z2_EN,LOW);
    Serial.printf("{\"id\":%lu,\"status\":\"ACCEPTED\",\"mode\":\"MOTOR_JOG\",\"axis\":\"Z%u\",\"direction\":\"%s\",\"drivers_enabled\":true}\n",id,axis,up?"UP":"DOWN");
@@ -134,7 +137,11 @@ void serviceJog(){
    uint8_t pin=jog.axis==1?Z1_STEP:Z2_STEP;
    digitalWrite(pin,HIGH);delayMicroseconds(5);digitalWrite(pin,LOW);
    ++jog.pulses;
-   jog.nextStepUs=micros()+stepIntervalUs;
+   if(jog.actualSpeedSps<(float)speedSps){
+     jog.actualSpeedSps += JOG_ACCEL_SPS2/jog.actualSpeedSps;
+     if(jog.actualSpeedSps>(float)speedSps)jog.actualSpeedSps=(float)speedSps;
+   }
+   jog.nextStepUs=micros()+(uint32_t)(1000000.0f/jog.actualSpeedSps);
  }
 }
 }
