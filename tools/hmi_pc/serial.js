@@ -12,7 +12,7 @@ el('disarm').disabled=el('disarm').disabled||!armed;
 el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
 el('armState').textContent=armed?'AUTORIZADO PARA UNA PRUEBA':'BLOQUEADO';
 for(const n of [1,2]){el('card'+n).classList.toggle('selected',selected===n);el('card'+n).classList.toggle('locked',selected!==n)}
-document.querySelectorAll('.test').forEach(b=>b.disabled=!ready||!b.dataset.cmd.includes('Z'+selected))}
+document.querySelectorAll('.test').forEach(b=>b.disabled=(!jogHeld&&!ready)||!b.dataset.cmd.includes('Z'+selected))}
 function response(data){el('last').textContent=data.status+' · '+(data.code||data.reply||data.state||data.test||'ESP32');
 if(typeof data.selected_axis==='number'){selected=data.selected_axis;armed=data.armed===true;}
 if(data.status==='DONE'||data.status==='ACCEPTED'){armed=false;}
