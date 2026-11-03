@@ -1,5 +1,37 @@
 let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1};
 const el=id=>document.getElementById(id);
+const diagSamples={1:[],2:[]};
+const diagInfo={1:null,2:null};
+function diagSummary(axis){
+ const raw=diagSamples[axis].filter(s=>Number.isFinite(s.sg)&&s.speed>=400);
+ if(!raw.length)return 'Z'+axis+': sin muestras';
+ const values=raw.map(s=>s.sg).sort((a,b)=>a-b);
+ const min=values[0],max=values[values.length-1],med=values[Math.floor(values.length/2)];
+ const zeros=values.filter(v=>v===0).length;
+ const t=raw.filter(s=>Number.isFinite(s.tstep)&&s.tstep>0);
+ return 'Z'+axis+': '+values.length+' lecturas · SG mediana '+med+
+   ' · rango '+min+'–'+max+' · ceros '+zeros+
+   (t.length?' · TSTEP '+t[t.length-1].tstep:'');
+}
+function diagRefresh(){
+ el('diagZ1').textContent=diagSummary(1);
+ el('diagZ2').textContent=diagSummary(2);
+ const a=diagSamples[1].filter(s=>s.speed>=400), b=diagSamples[2].filter(s=>s.speed>=400);
+ let conclusion='Realiza 5 segundos de giro libre con cada eje, a la misma velocidad.';
+ if(a.length>=6&&b.length>=6){
+   const az=a.filter(s=>s.sg===0).length,bz=b.filter(s=>s.sg===0).length;
+   if(az===a.length&&bz<b.length)conclusion='Z1 SG_RESULT siempre 0 y Z2 da valores: problema de señal/configuración Z1, no de la escala HMI.';
+   else if(az<a.length&&bz<b.length)conclusion='Ambos reportan SG_RESULT: calibra por separado a igual velocidad y sin carga.';
+   else conclusion='Lecturas insuficientes o saturadas: revisa diagnóstico de registros y modo de funcionamiento.';
+ }
+ el('diagVerdict').textContent='Resultado: '+conclusion;
+}
+function diagReset(){
+ diagSamples[1]=[];diagSamples[2]=[];
+ diagInfo[1]=null;diagInfo[2]=null;
+ el('diagCompareResult').textContent='Diagnóstico pendiente';
+ diagRefresh();
+}
 function resetLoad(axis=selected){
  loadSamples=[];loadBaselineSamples=[];loadBaseline=null;loadSuggestedThreshold=null;
  el('loadRaw').textContent='—';el('loadPercent').textContent='—';
@@ -125,9 +157,11 @@ function response(data){
  }
  if(data.driver_diag){
    const a=data.driver_diag.z1,b=data.driver_diag.z2;
+   diagInfo[1]=a;diagInfo[2]=b;
    const diffs=['gconf','chopconf','ihold_irun','pwmconf'].filter(k=>a[k]!==b[k]);
-   const compare=diffs.length?'REGISTROS DIFERENTES: '+diffs.join(', '):'Configuración leída igual en ambos';
-   el('diagCompareResult').textContent=compare+' · SG Z1='+a.sg_result+' / Z2='+b.sg_result;
+   const comm=(!a.uart||!b.uart)?'UART NO RESPONDE en '+(!a.uart?'Z1 ':'')+(!b.uart?'Z2':''):'UART de ambos OK';
+   const compare=diffs.length?'DIFERENCIAS: '+diffs.join(', '):'Registros de configuración iguales';
+   el('diagCompareResult').textContent=comm+' · '+compare;
    log('DIAGNÓSTICO TMC2209: '+JSON.stringify(data.driver_diag));
  }
  if(data.stallguard){
@@ -144,6 +178,11 @@ function response(data){
   if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallNumber').value=el('stallSensitivity').value;el('stallValue').textContent=el('stallSensitivity').value;}
  }
  if(data.status==='SAMPLE'&&data.axis){
+   if(Number.isFinite(data.sg_result)){
+     const list=diagSamples[data.axis];
+     if(list&&list.length<100)list.push({sg:data.sg_result,speed:data.speed_sps,tstep:data.tstep,direction:data.direction});
+     diagRefresh();
+   }
    receiveLoad(data);
    el('stallResult').textContent='SG_RESULT Z'+data.axis+': '+data.sg_result+' · Umbral de parada: '+(2*data.threshold)+' · Velocidad actual: '+data.speed_sps+' pasos/s';
  }
@@ -214,7 +253,8 @@ el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
 el('sensors').onclick=()=>send('GET_SENSORS');
-el('diagCompare').onclick=()=>send('DIAG_TMC');
+el('diagCompare').onclick=()=>{if(!jogHeld){send('DIAG_TMC');send('GET_SENSORS');}};
+el('diagReset').onclick=diagReset;
 function setStallValue(v){const n=Math.max(0,Math.min(255,Math.round(Number(v)||0)));el('stallSensitivity').value=String(n);el('stallNumber').value=String(n);el('stallValue').textContent=String(n);}
 el('loadGain').oninput=()=>{if(!selected)return;loadGains[selected]=Number(el('loadGain').value);el('loadGainValue').textContent=loadGains[selected]+'×';};
 el('stallSensitivity').oninput=()=>setStallValue(el('stallSensitivity').value);
@@ -266,6 +306,7 @@ window.addEventListener('blur',endJog);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)endJog()});
 update();
 resetLoad(0);
+diagRefresh();
 const descriptions={
 home:['CONTROL Z','Selecciona una sola aguja. Los motores están energizados únicamente durante el movimiento.'],
 tip:['CALIBRACIÓN DE PUNTA','Preparación: validar cableado y estado óptico en ambos sentidos; después referenciar Z1/Z2 por separado. Calibración física BLOQUEADA.'],
