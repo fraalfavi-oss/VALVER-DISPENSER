@@ -37,6 +37,19 @@ bool probeStall(uint8_t axis){
   if(!ok){stall[axis].enabled=false;stall[axis].monitoring=false;}
   return ok;
 }
+// One identical, centralised StallGuard4 setup for both TMC2209 axes.
+// No current, hold-current, microstep or motor-motion changes.
+bool configureStallGuardAxis(uint8_t axis){
+  if(!probeStall(axis))return false;
+  TMC2209Stepper &d=stallDriver(axis);
+  d.pdn_disable(true);
+  d.en_spreadCycle(false); // enable StealthChop, required by SG4
+  d.TCOOLTHRS(0xFFFFF);
+  d.SGTHRS(stall[axis].threshold);
+  // Verify UART write-back while the motor is stopped.
+  return d.pdn_disable() && !d.en_spreadCycle()
+      && d.TCOOLTHRS()==0xFFFFF && d.SGTHRS()==stall[axis].threshold;
+}
 struct DriverDiag { uint32_t gconf=0, chopconf=0, iholdIrun=0, pwmconf=0, tstep=0; uint16_t sg=0; bool ok=false; };
 DriverDiag diagnostics[3];
 // Read-only register comparison. This deliberately never copies driver current settings.
@@ -172,7 +185,7 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.2-tmc-compare\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.3-matched-sg4\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -192,14 +205,11 @@ void dispatch(const char* data) {
    if(jog.active){replyError(id,"STOP_BEFORE_CONFIG");return;}
    unsigned long axis=0;
    if(!readUIntField(data,"axis",axis)||axis<1||axis>2){replyError(id,"BAD_AXIS");return;}
-   if(!probeStall((uint8_t)axis)){replyError(id,"UART_NOT_CONNECTED");return;}
-   auto &d=stallDriver((uint8_t)axis);
-   // Identical StealthChop/StallGuard setup for both axes, not motor-current writes.
-   d.pdn_disable(true);
-   d.en_spreadCycle(false);
-   d.TCOOLTHRS(0xFFFFF);
-   d.SGTHRS(stall[axis].threshold);
-   stall[axis].monitoring=true;  // Monitor only: DOES NOT enable force-stop
+   if(!configureStallGuardAxis((uint8_t)axis)){
+     stall[axis].monitoring=false;stall[axis].enabled=false;
+     replyError(id,"STALLGUARD_CONFIG_READBACK_FAILED");return;
+   }
+   stall[axis].monitoring=true;  // Monitoring only: no automatic force stop
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"axis\":%lu,\"monitoring\":true,\"stall_enabled\":%s}\n",id,axis,stall[axis].enabled?"true":"false");
  }else if(strcmp(cmd,"SET_STALL_SENSITIVITY")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_CONFIG");return;}
@@ -213,12 +223,10 @@ void dispatch(const char* data) {
    unsigned long axis=0,enabled=0;
    if(!readUIntField(data,"axis",axis)||!readUIntField(data,"enabled",enabled)||axis<1||axis>2||enabled>1){replyError(id,"BAD_STALL_SETTING");return;}
    if(enabled){
-     if(!probeStall((uint8_t)axis)){replyError(id,"UART_NOT_CONNECTED");return;}
-     auto &d=stallDriver((uint8_t)axis);
-     d.pdn_disable(true);
-     d.en_spreadCycle(false); // StallGuard4 requires StealthChop
-     d.TCOOLTHRS(0xFFFFF);
-     d.SGTHRS(stall[axis].threshold);
+     if(!configureStallGuardAxis((uint8_t)axis)){
+       stall[axis].enabled=false;
+       replyError(id,"STALLGUARD_CONFIG_READBACK_FAILED");return;
+     }
      stall[axis].monitoring=true;
    }
    stall[axis].enabled=enabled!=0;
