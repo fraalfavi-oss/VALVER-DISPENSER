@@ -54,7 +54,7 @@ bool configureStepClock(){
     timer.duty_resolution=LEDC_TIMER_8_BIT;
     timer.timer_num=stepTimer(axis);
     timer.freq_hz=80;
-    timer.clk_cfg=LEDC_USE_REF_TICK;
+    timer.clk_cfg=LEDC_AUTO_CLK; // compatible with ESP-IDF bundled by PlatformIO
     if(ledc_timer_config(&timer)!=ESP_OK)return false;
     ledc_channel_config_t ch={};
     ch.gpio_num=axis==1?Z1_STEP:Z2_STEP;
