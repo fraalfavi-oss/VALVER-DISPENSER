@@ -120,7 +120,7 @@ void dispatch(const char* data) {
   } else if(strcmp(cmd,"DISARM_TEST")==0){
     disarm();replySelection(id);
   } else if(strcmp(cmd,"GET_STATUS")==0){
-    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"GPIO_TEST_ONLY\",\"motors_enabled\":false,\"vm_required\":false,\"drivers_enabled\":false,\"test_active\":%s,"jog_active\":%s}\n",id,test.active?"true":"false",jog.active?"true":"false");
+    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"GPIO_TEST_ONLY\",\"motors_enabled\":false,\"vm_required\":false,\"drivers_enabled\":false,\"test_active\":%s ,\"jog_active\":%s}\n",id,test.active?"true":"false",jog.active?"true":"false");
     replySelection(id);
   } else if(strcmp(cmd,"STOP_TEST")==0){
     disarm(); selectedAxis=0;
