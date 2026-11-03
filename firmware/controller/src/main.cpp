@@ -229,13 +229,15 @@ void dispatch(const char* data) {
  }
 }
 void serviceStall(){
- if(!jog.active || !stall[jog.axis].enabled)return;
+ if(!jog.active || !stall[jog.axis].uart)return; // monitor load even if automatic stop is disabled
  const uint32_t now=millis();
  const uint8_t axis=jog.axis;
  if(jog.actualSpeedSps<STALL_MIN_SPEED_SPS || now-jog.started<STALL_START_IGNORE_MS)return;
  if(now-stallLastPoll<STALL_POLL_MS)return;
  stallLastPoll=now;
+ const bool stoppingOnLoad=stall[axis].enabled;
  if(!probeStall(axis)){
+   if(!stoppingOnLoad)return;
    const unsigned long id=jog.id;
    stopJog();
    Serial.printf("{\"id\":%lu,\"status\":\"DONE\",\"reason\":\"STALL_UART_LOST\",\"axis\":%u,\"drivers_enabled\":false}\n",id,axis);
@@ -249,7 +251,7 @@ void serviceStall(){
  }
  if(s.result<=2U*s.threshold){if(s.lowReadings<3)s.lowReadings++;}
  else s.lowReadings=0;
- if(s.lowReadings>=2){
+ if(s.enabled && s.lowReadings>=2){
    const unsigned long id=jog.id;
    const uint16_t result=s.result;
    stopJog();
