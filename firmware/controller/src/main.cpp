@@ -14,7 +14,7 @@ constexpr uint8_t Z2_STEP=7,Z2_DIR=15,Z2_EN=16;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS=350;
 // Proposed per-driver UART wiring; see installation instructions. No motor-current writes.
 constexpr uint8_t UART_Z1_RX=17, UART_Z1_TX=18;
-constexpr uint8_t UART_Z2_RX=8, UART_Z2_TX=9;
+constexpr uint8_t UART_Z2_RX=10, UART_Z2_TX=9; // GPIO8 reserved for optical sensor
 constexpr uint32_t UART_BAUD=115200;
 constexpr uint16_t STALL_MIN_SPEED_SPS=400; // below this sensorless detection is not used
 constexpr uint32_t STALL_POLL_MS=30, STALL_START_IGNORE_MS=400;
