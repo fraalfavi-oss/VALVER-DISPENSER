@@ -29,6 +29,22 @@ struct StallAxis {
 };
 StallAxis stall[3];
 uint32_t stallLastPoll=0,stallLastTelemetry=0;
+struct DriverDiag { uint32_t gconf=0, chopconf=0, iholdIrun=0, pwmconf=0, tstep=0; uint16_t sg=0; bool ok=false; };
+DriverDiag diagnostics[3];
+// Read-only register comparison. This deliberately never copies driver current settings.
+DriverDiag readDriverDiag(uint8_t axis){
+  DriverDiag d{};
+  auto &driver=stallDriver(axis);
+  d.ok=probeStall(axis);
+  if(!d.ok)return d;
+  d.gconf=driver.GCONF();
+  d.chopconf=driver.CHOPCONF();
+  d.iholdIrun=driver.IHOLD_IRUN();
+  d.pwmconf=driver.PWMCONF();
+  d.tstep=driver.TSTEP();
+  d.sg=driver.SG_RESULT();
+  return d;
+}
 TMC2209Stepper &stallDriver(uint8_t axis){return axis==1?stallDriverZ1:stallDriverZ2;}
 bool probeStall(uint8_t axis){
   // 0x21 is the TMC2209 IOIN version code. No response means no valid feedback.
@@ -156,7 +172,7 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.1-z1-diagnostics\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.2-tmc-compare\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -165,12 +181,20 @@ void dispatch(const char* data) {
    if(!readSpeed(data,requested)||requested<MIN_SPEED_SPS||requested>MAX_SPEED_SPS){replyError(id,"INVALID_SPEED");return;}
    speedSps=(uint16_t)requested;stepIntervalUs=1000000UL/speedSps;
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"speed_sps\":%u}\n",id,speedSps);
+ }else if(strcmp(cmd,"DIAG_TMC")==0){
+   if(jog.active){replyError(id,"STOP_BEFORE_DIAG");return;}
+   for(uint8_t a=1;a<=2;a++)diagnostics[a]=readDriverDiag(a);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"driver_diag\":{\"z1\":{\"uart\":%s,\"gconf\":%lu,\"chopconf\":%lu,\"ihold_irun\":%lu,\"pwmconf\":%lu,\"tstep\":%lu,\"sg_result\":%u},\"z2\":{\"uart\":%s,\"gconf\":%lu,\"chopconf\":%lu,\"ihold_irun\":%lu,\"pwmconf\":%lu,\"tstep\":%lu,\"sg_result\":%u}}}\n",
+     id,
+     diagnostics[1].ok?"true":"false",(unsigned long)diagnostics[1].gconf,(unsigned long)diagnostics[1].chopconf,(unsigned long)diagnostics[1].iholdIrun,(unsigned long)diagnostics[1].pwmconf,(unsigned long)diagnostics[1].tstep,diagnostics[1].sg,
+     diagnostics[2].ok?"true":"false",(unsigned long)diagnostics[2].gconf,(unsigned long)diagnostics[2].chopconf,(unsigned long)diagnostics[2].iholdIrun,(unsigned long)diagnostics[2].pwmconf,(unsigned long)diagnostics[2].tstep,diagnostics[2].sg);
  }else if(strcmp(cmd,"MONITOR_STALL")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_CONFIG");return;}
    unsigned long axis=0;
    if(!readUIntField(data,"axis",axis)||axis<1||axis>2){replyError(id,"BAD_AXIS");return;}
    if(!probeStall((uint8_t)axis)){replyError(id,"UART_NOT_CONNECTED");return;}
    auto &d=stallDriver((uint8_t)axis);
+   // Identical StealthChop/StallGuard setup for both axes, not motor-current writes.
    d.pdn_disable(true);
    d.en_spreadCycle(false);
    d.TCOOLTHRS(0xFFFFF);
