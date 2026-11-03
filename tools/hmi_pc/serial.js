@@ -4,7 +4,7 @@ function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeig
 function update(){const ready=connected&&pingOK&&verified&&!testing&&armed&&el('confirm').checked;
 el('state').textContent=connected?(pingOK?'ESP32 RESPONDE':'COM ABIERTO · SIN PONG'):'DESCONECTADO';
 el('state').style.color=pingOK?'#5fe2ad':'#f5b4b4';
-for(const id of ['ping','info','status','sensors','disconnect'])el(id).disabled=!connected;
+for(const id of ['ping','info','status','sensors','readiness','disconnect'])el(id).disabled=!connected;
 el('connect').disabled=connected;el('stop').disabled=!connected;
 for(const id of ['choose1','choose2','disable','arm','disarm'])el(id).disabled=!connected||!pingOK||!verified||testing;
 el('arm').disabled=el('arm').disabled||!selected||armed||!el('confirm').checked;
@@ -18,6 +18,11 @@ if(typeof data.selected_axis==='number'){selected=data.selected_axis;armed=data.
 if(data.status==='DONE'||data.status==='ACCEPTED'){armed=false;}
 if(data.state==='JOG_STOPPED'){testing=false;}
 if(data.status==='ERROR'){armed=false;endJog();log('Controlador rechazó la operación: '+data.code);}
+if(data.reason==='COMMISSIONING_REQUIRED'){
+ el('readinessLabel').textContent='Motor real BLOQUEADO: faltan verificar corriente, finales de carrera, UART y sensores.';
+ el('last').textContent='No apto para movimiento real';
+ log('SEGURIDAD: pendiente verificación de corriente, UART, finales y sensores');
+}
 if(data.optical && data.stallguard) {
  el('sensorReadout').textContent='Sensor óptico: '+(data.optical.configured?'configurado':'PENDIENTE')+' · StallGuard4 Z1/Z2: '+(data.stallguard.z1_uart&&data.stallguard.z2_uart?'UART verificado':'UART PENDIENTE');
  log('Calibraciones bloqueadas hasta validar sensores y movimiento');
@@ -31,7 +36,7 @@ async function readLoop(){const decoder=new TextDecoder();
 try{while(connected&&reader){const {value,done}=await reader.read();if(done)break;
 rx+=decoder.decode(value,{stream:true});if(rx.length>4096){log('ERROR: RX largo');rx=''}
 let pos;while((pos=rx.indexOf('\n'))>=0){const line=rx.slice(0,pos).trim();rx=rx.slice(pos+1);if(!line)continue;
-try{const data=JSON.parse(line);log('RX ← '+line);response(data)}catch{log('RX texto ← '+line)}}}}
+try{const data=JSON.parse(line);if(data.mode!=='GPIO_JOG_ONLY')log('RX ← '+line);response(data)}catch{log('RX texto ← '+line)}}}}
 catch(e){log('Error de lectura: '+e.message)}
 finally{if(connected)await disconnect()}}
 async function connect(){if(!('serial' in navigator)){log('Web Serial requiere Chrome o Edge en localhost');return}
@@ -43,9 +48,10 @@ try{await reader?.cancel()}catch{}try{reader?.releaseLock()}catch{}reader=null;
 try{writer?.releaseLock()}catch{}writer=null;
 try{await port?.close()}catch(e){log('Cierre: '+e.message)}port=null;closing=false}
 async function send(cmd){if(!connected||!writer)return;const m={id:counter++,cmd};
-try{await writer.write(new TextEncoder().encode(JSON.stringify(m)+'\n'));log('TX → '+JSON.stringify(m))}catch(e){log('Error de envío: '+e.message)}}
+try{await writer.write(new TextEncoder().encode(JSON.stringify(m)+'\n'));if(cmd!=='JOG_GPIO_HEARTBEAT')log('TX → '+JSON.stringify(m))}catch(e){log('Error de envío: '+e.message)}}
 el('connect').onclick=connect;el('disconnect').onclick=disconnect;
 el('sensors').onclick=()=>send('GET_SENSORS');
+el('readiness').onclick=()=>send('GET_READINESS');
 el('ping').onclick=()=>send('PING');el('info').onclick=()=>send('GET_INFO');el('status').onclick=()=>send('GET_STATUS');
 el('choose1').onclick=()=>send('SELECT_Z1');
 el('choose2').onclick=()=>send('SELECT_Z2');
@@ -84,11 +90,11 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)endJog()});
 update();
 const descriptions={
 home:['CONTROL Z','Selecciona una sola aguja. Los motores siguen desconectados.'],
-tip:['CALIBRACIÓN DE PUNTA','La lectura del sensor óptico todavía no está implementada. No se ejecuta calibración física.'],
-table:['ALTURA DE MESA','La detección de contacto de mesa y StallGuard requieren validación antes de habilitarse.'],
+tip:['CALIBRACIÓN DE PUNTA','Preparación: validar cableado y estado óptico en ambos sentidos; después referenciar Z1/Z2 por separado. Calibración física BLOQUEADA.'],
+table:['ALTURA DE MESA','Preparación: validar UART y StallGuard4 a la velocidad de aproximación, con tope independiente. Detección de contacto BLOQUEADA.'],
 test:['PRUEBAS DE SEÑALES GPIO','Selecciona Z1 o Z2 en INICIO y autoriza una prueba individual. EN permanece deshabilitado.'],
 diag:['DIAGNÓSTICO','Utiliza PING, INFO y Estado para comprobar la comunicación USB con el ESP32.'],
-settings:['AJUSTES DE ALTURAS','Las alturas de reposo y dispensación se configurarán tras validar los motores y la referencia Z.']
+settings:['AJUSTES DE ALTURAS','Plan: guardar reposo y dispensación de Z1/Z2 en NVS tras homing y calibración verificados. Sin órdenes de movimiento reales.']
 };
 function page(name){
 const x=descriptions[name]||descriptions.home;
