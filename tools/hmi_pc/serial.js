@@ -15,7 +15,7 @@ function update(){
   el('card'+n).classList.toggle('selected',selected===n);
   el('card'+n).classList.toggle('locked',selected!==n);
  }
- document.querySelectorAll('.test').forEach(b=>b.disabled=!ready||!b.dataset.cmd.includes('Z'+selected));
+ document.querySelectorAll('.test').forEach(b=>b.disabled=(!jogHeld&&!ready)||!b.dataset.cmd.includes('Z'+selected));
 }
 function response(data){
  if(data.reply==='PONG'){pingOK=true;log('Comunicación verificada con PONG');}
