@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <TMCStepper.h>
+#include "driver/ledc.h"
 #include "config/SystemConfig.h"
 #include "config/HardwareConfig.h"
 
@@ -37,14 +38,56 @@ bool probeStall(uint8_t axis){
   return ok;
 }
 constexpr uint16_t MIN_SPEED_SPS=20, MAX_SPEED_SPS=1600;
-constexpr float JOG_ACCEL_SPS2=600.0f; // smooth start, avoid instantaneous high-speed step changes
+constexpr float JOG_ACCEL_SPS2=600.0f;
+constexpr uint32_t SPEED_RAMP_PERIOD_MS=20;
+// LEDC hardware PWM runs independently of UART polling and the main loop.
+constexpr ledc_mode_t STEP_MODE=LEDC_LOW_SPEED_MODE;
+constexpr ledc_timer_t STEP_TIMER_Z1=LEDC_TIMER_0, STEP_TIMER_Z2=LEDC_TIMER_1;
+constexpr ledc_channel_t STEP_CHANNEL_Z1=LEDC_CHANNEL_0, STEP_CHANNEL_Z2=LEDC_CHANNEL_1;
+bool stepClockReady=false;
+ledc_channel_t stepChannel(uint8_t axis){return axis==1?STEP_CHANNEL_Z1:STEP_CHANNEL_Z2;}
+ledc_timer_t stepTimer(uint8_t axis){return axis==1?STEP_TIMER_Z1:STEP_TIMER_Z2;}
+bool configureStepClock(){
+  for(uint8_t axis=1;axis<=2;axis++){
+    ledc_timer_config_t timer={};
+    timer.speed_mode=STEP_MODE;
+    timer.duty_resolution=LEDC_TIMER_8_BIT;
+    timer.timer_num=stepTimer(axis);
+    timer.freq_hz=80;
+    timer.clk_cfg=LEDC_USE_REF_TICK;
+    if(ledc_timer_config(&timer)!=ESP_OK)return false;
+    ledc_channel_config_t ch={};
+    ch.gpio_num=axis==1?Z1_STEP:Z2_STEP;
+    ch.speed_mode=STEP_MODE;
+    ch.channel=stepChannel(axis);
+    ch.intr_type=LEDC_INTR_DISABLE;
+    ch.timer_sel=stepTimer(axis);
+    ch.duty=0;
+    ch.hpoint=0;
+    if(ledc_channel_config(&ch)!=ESP_OK)return false;
+  }
+  return true;
+}
+void stopStepClock(){
+  ledc_set_duty(STEP_MODE,STEP_CHANNEL_Z1,0);
+  ledc_update_duty(STEP_MODE,STEP_CHANNEL_Z1);
+  ledc_set_duty(STEP_MODE,STEP_CHANNEL_Z2,0);
+  ledc_update_duty(STEP_MODE,STEP_CHANNEL_Z2);
+}
+bool setStepClock(uint8_t axis,uint16_t hz){
+  return ledc_set_freq(STEP_MODE,stepTimer(axis),hz)!=0;
+}
+void startStepClock(uint8_t axis){
+  ledc_set_duty(STEP_MODE,stepChannel(axis),128);
+  ledc_update_duty(STEP_MODE,stepChannel(axis));
+}
 uint16_t speedSps=160;
 uint32_t stepIntervalUs=1000000UL/160;
 struct JogState {
   bool active=false;
   uint8_t axis=0;
   bool up=false;
-  uint32_t lastHeartbeat=0,nextStepUs=0,started=0;
+  uint32_t lastHeartbeat=0,started=0,lastRampMs=0;
   uint32_t pulses=0;
   float actualSpeedSps=0.0f;
   unsigned long id=0;
@@ -97,7 +140,7 @@ bool readUIntField(const char *json,const char *key,unsigned long &value){
 }
 void disableDrivers(){
  digitalWrite(Z1_EN,HIGH);digitalWrite(Z2_EN,HIGH);
- digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
+ if(stepClockReady)stopStepClock();
 }
 void stopJog(){
  jog.active=false;
@@ -113,7 +156,7 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.5.0-stallguard-uart\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.6.0-smooth-step\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":true,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -156,6 +199,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"JOG_MOTOR_START_Z1_UP")==0||strcmp(cmd,"JOG_MOTOR_START_Z1_DOWN")==0||
          strcmp(cmd,"JOG_MOTOR_START_Z2_UP")==0||strcmp(cmd,"JOG_MOTOR_START_Z2_DOWN")==0){
    if(jog.active){replyError(id,"BUSY");return;}
+   if(!stepClockReady){replyError(id,"STEP_CLOCK_NOT_READY");return;}
    uint8_t axis=strstr(cmd,"Z1")?1:2;
    if(selectedAxis!=axis){replyError(id,"CHANNEL_LOCKED");return;}
    const bool up=strstr(cmd,"_UP")!=nullptr;
@@ -163,10 +207,13 @@ void dispatch(const char* data) {
    digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?HIGH:LOW);
    delayMicroseconds(20); // DIR setup prior to driver enable/STEP
    jog.axis=axis;jog.up=up;jog.lastHeartbeat=millis();jog.started=millis();stall[axis].lowReadings=0;
-   jog.nextStepUs=micros()+1500;jog.pulses=0;jog.id=id;
+   jog.pulses=0;jog.id=id;
    jog.actualSpeedSps=(float)(speedSps<80?speedSps:80);
+   jog.lastRampMs=millis();
+   if(!setStepClock(axis,(uint16_t)jog.actualSpeedSps)){replyError(id,"STEP_CLOCK_CONFIG_FAILED");return;}
    jog.active=true;
    digitalWrite(axis==1?Z1_EN:Z2_EN,LOW);
+   startStepClock(axis);
    Serial.printf("{\"id\":%lu,\"status\":\"ACCEPTED\",\"mode\":\"MOTOR_JOG\",\"axis\":\"Z%u\",\"direction\":\"%s\",\"drivers_enabled\":true}\n",id,axis,up?"UP":"DOWN");
  }else if(strcmp(cmd,"JOG_MOTOR_HEARTBEAT")==0){
    if(!jog.active){replyError(id,"NO_JOG");return;}
@@ -214,16 +261,14 @@ void serviceJog(){
    Serial.printf("{\"id\":%lu,\"status\":\"DONE\",\"mode\":\"MOTOR_JOG\",\"pulses\":%lu,\"reason\":\"HEARTBEAT_LOST\",\"drivers_enabled\":false}\n",id,(unsigned long)pulses);
    return;
  }
- const uint32_t us=micros();
- if((int32_t)(us-jog.nextStepUs)>=0){
-   uint8_t pin=jog.axis==1?Z1_STEP:Z2_STEP;
-   digitalWrite(pin,HIGH);delayMicroseconds(5);digitalWrite(pin,LOW);
-   ++jog.pulses;
+ if(ms-jog.lastRampMs>=SPEED_RAMP_PERIOD_MS){
+   const uint32_t elapsed=ms-jog.lastRampMs;
+   jog.lastRampMs=ms;
    if(jog.actualSpeedSps<(float)speedSps){
-     jog.actualSpeedSps += JOG_ACCEL_SPS2/jog.actualSpeedSps;
+     jog.actualSpeedSps+=JOG_ACCEL_SPS2*((float)elapsed/1000.0f);
      if(jog.actualSpeedSps>(float)speedSps)jog.actualSpeedSps=(float)speedSps;
+     setStepClock(jog.axis,(uint16_t)jog.actualSpeedSps);
    }
-   jog.nextStepUs=micros()+(uint32_t)(1000000.0f/jog.actualSpeedSps);
  }
 }
 }
@@ -238,6 +283,8 @@ void setup(){
  pinMode(Z1_EN,OUTPUT);pinMode(Z2_EN,OUTPUT);
  pinMode(Z1_STEP,OUTPUT);pinMode(Z2_STEP,OUTPUT);
  pinMode(Z1_DIR,OUTPUT);pinMode(Z2_DIR,OUTPUT);
+ digitalWrite(Z1_EN,HIGH);digitalWrite(Z2_EN,HIGH);
+ stepClockReady=configureStepClock();
  disableDrivers();
  Serial.begin(valver::kDefaultBaudRate);
 }
