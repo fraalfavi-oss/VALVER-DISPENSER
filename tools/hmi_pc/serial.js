@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40};
 const el=id=>document.getElementById(id);
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
 function update(){
@@ -9,8 +9,14 @@ function update(){
  el('connect').disabled=connected;
  el('stop').disabled=!connected;
  el('speed').disabled=!ready;
+ const axisReady=ready&&selected>0;
+ el('stallApply').disabled=!axisReady;
+ el('stallEnable').disabled=!axisReady||!stallData['z'+selected+'_uart']||stallData['z'+selected+'_enabled'];
+ el('stallDisable').disabled=!axisReady||!stallData['z'+selected+'_enabled'];
+ el('stallSensitivity').disabled=!axisReady;
  for(const id of ['choose1','choose2','disable'])el(id).disabled=!connected||!pingOK||testing;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
+ el('stallState').textContent=selected?(stallData['z'+selected+'_enabled']?'Z'+selected+' · ACTIVA':stallData['z'+selected+'_uart']?'Z'+selected+' · UART OK, detector apagado':'Z'+selected+' · UART sin conexión'):'Selecciona Z1/Z2';
  el('armState').textContent=testing?'MOVIENDO · Z'+selected:'MOTORES DETENIDOS';
  for(const n of [1,2]){
   el('card'+n).classList.toggle('selected',selected===n);
@@ -23,19 +29,28 @@ function response(data){
   pingOK=true;
   log('Comunicación verificada con PONG');
   if(!autoSelected){autoSelected=true;send('SELECT_Z1');log('Z1: selección automática enviada');}
-  send('GET_STATUS');
+  send('GET_STATUS');send('GET_SENSORS');
  }
  if(data.state==='HOLD_MOTOR_JOG'){
    verified=true;
 
  }
  if(Number.isFinite(data.speed_sps)){el('speed').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);}
- if(typeof data.selected_axis==='number')selected=data.selected_axis;
- if(data.optical&&data.stallguard)el('sensorReadout').textContent='Sensor óptico: pendiente · StallGuard4: pendiente';
+ if(typeof data.selected_axis==='number'){
+  selected=data.selected_axis;
+  if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallValue').textContent=el('stallSensitivity').value;}
+ }
+ if(data.stallguard){
+  stallData={...stallData,...data.stallguard};
+  el('sensorReadout').textContent='StallGuard4 · Z1 UART: '+(stallData.z1_uart?'OK':'sin conexión')+' · Z2 UART: '+(stallData.z2_uart?'OK':'sin conexión');
+  if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallValue').textContent=el('stallSensitivity').value;}
+ }
+ if(typeof data.stall_enabled==='boolean'&&data.axis)stallData['z'+data.axis+'_enabled']=data.stall_enabled;
+ if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){log('ERROR: '+data.code);endJog();}
  if(data.status==='DONE'||data.state==='JOG_STOPPED'||data.state==='STOPPED')testing=false;
  if(data.status==='ACCEPTED'&&data.mode==='MOTOR_JOG')testing=true;
- if(data.reason==='HEARTBEAT_LOST'){endJog();}
+ if(['HEARTBEAT_LOST','STALL_DETECTED','STALL_UART_LOST'].includes(data.reason)){log('PARADA AUTOMÁTICA: '+data.reason+(data.sg_result!==undefined?' · SG_RESULT='+data.sg_result:''));endJog();send('GET_SENSORS');}
  el('last').textContent=data.status+' · '+(data.code||data.mode||data.state||data.reply||'ESP32');
  update();
 }
@@ -84,9 +99,13 @@ el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
 el('sensors').onclick=()=>send('GET_SENSORS');
+el('stallSensitivity').oninput=()=>{el('stallValue').textContent=el('stallSensitivity').value};
+el('stallApply').onclick=()=>{if(selected)send('SET_STALL_SENSITIVITY',{axis:selected,threshold:Number(el('stallSensitivity').value)})};
+el('stallEnable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:1}).then(()=>send('GET_SENSORS'))};
+el('stallDisable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:0}).then(()=>send('GET_SENSORS'))};
 el('readiness').onclick=()=>send('GET_READINESS');
-el('choose1').onclick=()=>send('SELECT_Z1');
-el('choose2').onclick=()=>send('SELECT_Z2');
+el('choose1').onclick=()=>send('SELECT_Z1').then(()=>send('GET_SENSORS'));
+el('choose2').onclick=()=>send('SELECT_Z2').then(()=>send('GET_SENSORS'));
 el('disable').onclick=()=>{endJog();send('DISABLE_CHANNELS')};
 el('stop').onclick=()=>{endJog();send('STOP_TEST')};
 el('speed').oninput=()=>{el('speedValue').textContent=el('speed').value};
