@@ -28,7 +28,7 @@ struct StallAxis {
   uint16_t result=0;
 };
 StallAxis stall[3];
-uint32_t stallLastPoll=0;
+uint32_t stallLastPoll=0,stallLastTelemetry=0;
 TMC2209Stepper &stallDriver(uint8_t axis){return axis==1?stallDriverZ1:stallDriverZ2;}
 bool probeStall(uint8_t axis){
   // 0x21 is the TMC2209 IOIN version code. No response means no valid feedback.
@@ -243,7 +243,11 @@ void serviceStall(){
  }
  StallAxis &s=stall[axis];
  s.result=stallDriver(axis).SG_RESULT();
- if(s.result<=2U*s.threshold)++s.lowReadings;
+ if(now-stallLastTelemetry>=250){
+   stallLastTelemetry=now;
+   Serial.printf("{\"status\":\"SAMPLE\",\"axis\":%u,\"sg_result\":%u,\"threshold\":%u,\"speed_sps\":%u}\n",axis,s.result,s.threshold,(unsigned)jog.actualSpeedSps);
+ }
+ if(s.result<=2U*s.threshold){if(s.lowReadings<3)s.lowReadings++;}
  else s.lowReadings=0;
  if(s.lowReadings>=2){
    const unsigned long id=jog.id;
@@ -256,9 +260,9 @@ void serviceJog(){
  if(!jog.active)return;
  const uint32_t ms=millis();
  if(ms-jog.lastHeartbeat>HEARTBEAT_TIMEOUT_MS){
-   unsigned long id=jog.id;const uint32_t pulses=jog.pulses;
+   unsigned long id=jog.id;
    stopJog();
-   Serial.printf("{\"id\":%lu,\"status\":\"DONE\",\"mode\":\"MOTOR_JOG\",\"pulses\":%lu,\"reason\":\"HEARTBEAT_LOST\",\"drivers_enabled\":false}\n",id,(unsigned long)pulses);
+   Serial.printf("{\"id\":%lu,\"status\":\"DONE\",\"mode\":\"MOTOR_JOG\",\"reason\":\"HEARTBEAT_LOST\",\"drivers_enabled\":false}\n",id);
    return;
  }
  if(ms-jog.lastRampMs>=SPEED_RAMP_PERIOD_MS){
