@@ -246,7 +246,7 @@ void serviceStall(){
  if(!jog.active || !stall[jog.axis].uart || !stall[jog.axis].monitoring)return; // live telemetry independent of force-stop
  const uint32_t now=millis();
  const uint8_t axis=jog.axis;
- if(jog.actualSpeedSps<STALL_MIN_SPEED_SPS || now-jog.started<STALL_START_IGNORE_MS)return;
+ if(jog.actualSpeedSps<STALL_MIN_SPEED_SPS || jog.actualSpeedSps+5.0f<(float)speedSps || now-jog.started<STALL_START_IGNORE_MS)return; // read only at stable usable speed
  if(now-stallLastPoll<STALL_POLL_MS)return;
  stallLastPoll=now;
  const bool stoppingOnLoad=stall[axis].enabled;
