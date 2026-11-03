@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,jogStarted=0;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve();
 const el=id=>document.getElementById(id);
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
 function update(){
@@ -8,6 +8,7 @@ function update(){
  for(const id of ['ping','info','status','sensors','readiness','disconnect'])el(id).disabled=!connected;
  el('connect').disabled=connected;
  el('stop').disabled=!connected;
+ el('speed').disabled=!ready;
  for(const id of ['choose1','choose2','disable'])el(id).disabled=!ready;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
  el('armState').textContent=testing?'MOVIENDO · Z'+selected:'MOTORES DETENIDOS';
@@ -19,7 +20,8 @@ function update(){
 }
 function response(data){
  if(data.reply==='PONG'){pingOK=true;log('Comunicación verificada con PONG');}
- if(data.state==='LIMITED_MOTOR_JOG'){verified=true;}
+ if(data.state==='HOLD_MOTOR_JOG'){verified=true;}
+ if(Number.isFinite(data.speed_sps)){el('speed').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);}
  if(typeof data.selected_axis==='number')selected=data.selected_axis;
  if(data.optical&&data.stallguard)el('sensorReadout').textContent='Sensor óptico: pendiente · StallGuard4: pendiente';
  if(data.status==='ERROR'){log('ERROR: '+data.code);endJog();}
@@ -36,7 +38,7 @@ async function readLoop(){const decoder=new TextDecoder();
   if(rx.length>4096){log('RX demasiado largo');rx='';}
   let pos;while((pos=rx.indexOf('\n'))>=0){
    const line=rx.slice(0,pos).trim();rx=rx.slice(pos+1);if(!line)continue;
-   try{const d=JSON.parse(line);log('RX ← '+line);response(d)}catch{log('RX texto ← '+line)}
+   try{const d=JSON.parse(line);log('RX ← '+line);response(d)}catch{log('RX texto ← '+line);if(line.includes('Brownout')||line.includes('ESP-ROM:')){verified=false;pingOK=false;selected=0;endJog();update();}}
   }
  }}catch(e){log('Error de lectura: '+e.message)}
  finally{if(connected)await disconnect()}
@@ -58,12 +60,16 @@ async function disconnect(){
  try{await port?.close()}catch(e){log('Cierre: '+e.message)}
  port=null;closing=false;
 }
-async function send(cmd){
- if(!connected||!writer)return;
- const m={id:counter++,cmd};
- try{await writer.write(new TextEncoder().encode(JSON.stringify(m)+'\n'));
- if(cmd!=='JOG_MOTOR_HEARTBEAT')log('TX → '+JSON.stringify(m));
- }catch(e){log('Error de envío: '+e.message);endJog();}
+function send(cmd,fields={}){
+ if(!connected||!writer)return Promise.resolve();
+ const m={id:counter++,cmd,...fields};
+ const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
+ txQueue=txQueue.catch(()=>{}).then(async()=>{
+  if(!connected||!writer)return;
+  await writer.write(payload);
+  if(cmd!=='JOG_MOTOR_HEARTBEAT')log('TX → '+JSON.stringify(m));
+ }).catch(e=>{log('Error de envío: '+e.message);endJog();});
+ return txQueue;
 }
 el('connect').onclick=connect;el('disconnect').onclick=disconnect;
 el('ping').onclick=()=>send('PING');
@@ -75,6 +81,8 @@ el('choose1').onclick=()=>send('SELECT_Z1');
 el('choose2').onclick=()=>send('SELECT_Z2');
 el('disable').onclick=()=>{endJog();send('DISABLE_CHANNELS')};
 el('stop').onclick=()=>{endJog();send('STOP_TEST')};
+el('speed').oninput=()=>{el('speedValue').textContent=el('speed').value};
+el('speed').onchange=()=>{if(jogHeld)return;send('SET_SPEED',{speed_sps:Number(el('speed').value)})};
 function endJog(){
  if(jogTimer){clearInterval(jogTimer);jogTimer=null;}
  if(!jogHeld)return;
@@ -84,12 +92,12 @@ function endJog(){
 function beginJog(b,e){
  if(b.disabled||jogHeld||!connected||!verified)return;
  if(e.pointerType==='mouse'&&e.button!==0)return;
- jogHeld=true;jogStarted=Date.now();testing=true;update();
+ jogHeld=true;testing=true;update();
  b.setPointerCapture?.(e.pointerId);
  void send(b.dataset.cmd);
  jogTimer=setInterval(()=>{
   if(!jogHeld)return;
-  if(!connected||document.hidden||Date.now()-jogStarted>1900){endJog();return;}
+  if(!connected||document.hidden){endJog();return;}
   void send('JOG_MOTOR_HEARTBEAT');
  },150);
 }
@@ -107,7 +115,7 @@ const descriptions={
 home:['CONTROL Z','Selecciona una sola aguja. Los motores están energizados únicamente durante el movimiento.'],
 tip:['CALIBRACIÓN DE PUNTA','Preparación: validar cableado y estado óptico en ambos sentidos; después referenciar Z1/Z2 por separado. Calibración física BLOQUEADA.'],
 table:['ALTURA DE MESA','Preparación: validar UART y StallGuard4 a la velocidad de aproximación, con tope independiente. Detección de contacto BLOQUEADA.'],
-test:['PRUEBAS DE SEÑALES GPIO','Selecciona Z1 o Z2 en INICIO y mantén un botón de movimiento. EN solo se habilita durante la orden limitada.'],
+test:['PRUEBAS DE SEÑALES GPIO','Selecciona Z1 o Z2 en INICIO y mantén un botón de movimiento. EN solo se habilita durante una pulsación mantenida.'],
 diag:['DIAGNÓSTICO','Utiliza PING, INFO y Estado para comprobar la comunicación USB con el ESP32.'],
 settings:['AJUSTES DE ALTURAS','Plan: guardar reposo y dispensación de Z1/Z2 en NVS tras homing y calibración verificados. Las posiciones quedan pendientes de referencia.']
 };
