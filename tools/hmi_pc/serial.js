@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,armed=false;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,armed=false,jogHeld=false,jogTimer=null,jogStarted=0;
 const el=id=>document.getElementById(id);
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
 function update(){const ready=connected&&pingOK&&verified&&!testing&&armed&&el('confirm').checked;
@@ -16,7 +16,8 @@ document.querySelectorAll('.test').forEach(b=>b.disabled=!ready||!b.dataset.cmd.
 function response(data){el('last').textContent=data.status+' · '+(data.code||data.reply||data.state||data.test||'ESP32');
 if(typeof data.selected_axis==='number'){selected=data.selected_axis;armed=data.armed===true;}
 if(data.status==='DONE'||data.status==='ACCEPTED'){armed=false;}
-if(data.status==='ERROR'){armed=false;log('Controlador rechazó la operación: '+data.code);}
+if(data.state==='JOG_STOPPED'){testing=false;}
+if(data.status==='ERROR'){armed=false;endJog();log('Controlador rechazó la operación: '+data.code);}
 if(data.optical && data.stallguard) {
  el('sensorReadout').textContent='Sensor óptico: '+(data.optical.configured?'configurado':'PENDIENTE')+' · StallGuard4 Z1/Z2: '+(data.stallguard.z1_uart&&data.stallguard.z2_uart?'UART verificado':'UART PENDIENTE');
  log('Calibraciones bloqueadas hasta validar sensores y movimiento');
@@ -37,7 +38,7 @@ async function connect(){if(!('serial' in navigator)){log('Web Serial requiere C
 try{port=await navigator.serial.requestPort();await port.open({baudRate:115200});
 reader=port.readable.getReader();writer=port.writable.getWriter();connected=true;pingOK=false;verified=false;selected=0;armed=false;update();log('COM abierto · esperando firmware');void readLoop()}
 catch(e){log('Error de conexión: '+e.message);await disconnect()}}
-async function disconnect(){if(closing)return;closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;armed=false;update();
+async function disconnect(){if(closing)return;endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;armed=false;update();
 try{await reader?.cancel()}catch{}try{reader?.releaseLock()}catch{}reader=null;
 try{writer?.releaseLock()}catch{}writer=null;
 try{await port?.close()}catch(e){log('Cierre: '+e.message)}port=null;closing=false}
@@ -51,8 +52,35 @@ el('choose2').onclick=()=>send('SELECT_Z2');
 el('disable').onclick=()=>send('DISABLE_CHANNELS');
 el('arm').onclick=()=>send('ARM_TEST');
 el('disarm').onclick=()=>send('DISARM_TEST');
-el('stop').onclick=()=>send('STOP_TEST');el('confirm').onchange=update;
-document.querySelectorAll('.test').forEach(b=>b.onclick=async()=>{if(b.disabled)return;testing=true;armed=false;update();await send(b.dataset.cmd)});
+el('stop').onclick=()=>{endJog();send('STOP_TEST')};el('confirm').onchange=update;
+function endJog(){
+ if(jogTimer){clearInterval(jogTimer);jogTimer=null;}
+ if(!jogHeld)return;
+ jogHeld=false;testing=false;armed=false;update();
+ void send('JOG_GPIO_STOP');
+}
+function beginJog(b,e){
+ if(b.disabled||jogHeld||!connected||!armed)return;
+ if(e.pointerType==='mouse'&&e.button!==0)return;
+ jogHeld=true;jogStarted=Date.now();testing=true;armed=false;
+ b.setPointerCapture?.(e.pointerId);
+ void send(b.dataset.cmd);
+ jogTimer=setInterval(()=>{
+  if(!jogHeld)return;
+  if(!connected||document.hidden||Date.now()-jogStarted>9600){endJog();return;}
+  void send('JOG_GPIO_HEARTBEAT');
+ },150);
+ update();
+}
+document.querySelectorAll('.test').forEach(b=>{
+ b.addEventListener('pointerdown',e=>beginJog(b,e));
+ b.addEventListener('pointerup',endJog);
+ b.addEventListener('pointercancel',endJog);
+ b.addEventListener('lostpointercapture',endJog);
+});
+window.addEventListener('pointerup',endJog);
+window.addEventListener('blur',endJog);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)endJog()});
 update();
 const descriptions={
 home:['CONTROL Z','Selecciona una sola aguja. Los motores siguen desconectados.'],
