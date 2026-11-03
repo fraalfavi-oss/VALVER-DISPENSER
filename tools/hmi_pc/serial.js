@@ -9,11 +9,13 @@ function update(){
  el('connect').disabled=connected;
  el('stop').disabled=!connected;
  el('speed').disabled=!ready;
+ for(const id of ['speedMinus','speedPlus','speedNumber'])el(id).disabled=!ready;
  const axisReady=ready&&selected>0;
  el('stallApply').disabled=!axisReady;
  el('stallEnable').disabled=!axisReady||!stallData['z'+selected+'_uart']||stallData['z'+selected+'_enabled'];
  el('stallDisable').disabled=!axisReady||!stallData['z'+selected+'_enabled'];
  el('stallSensitivity').disabled=!axisReady;
+ for(const id of ['stallMinus','stallPlus','stallNumber'])el(id).disabled=!axisReady;
  for(const id of ['choose1','choose2','disable'])el(id).disabled=!connected||!pingOK||testing;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
  el('stallState').textContent=selected?(stallData['z'+selected+'_enabled']?'Z'+selected+' · ACTIVA':stallData['z'+selected+'_uart']?'Z'+selected+' · UART OK, detector apagado':'Z'+selected+' · UART sin conexión'):'Selecciona Z1/Z2';
@@ -35,15 +37,18 @@ function response(data){
    verified=true;
 
  }
- if(Number.isFinite(data.speed_sps)){el('speed').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);}
+ if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);}
  if(typeof data.selected_axis==='number'){
   selected=data.selected_axis;
-  if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallValue').textContent=el('stallSensitivity').value;}
+  if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallNumber').value=el('stallSensitivity').value;el('stallValue').textContent=el('stallSensitivity').value;}
  }
  if(data.stallguard){
   stallData={...stallData,...data.stallguard};
   el('sensorReadout').textContent='StallGuard4 · Z1 UART: '+(stallData.z1_uart?'OK':'sin conexión')+' · Z2 UART: '+(stallData.z2_uart?'OK':'sin conexión');
-  if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallValue').textContent=el('stallSensitivity').value;}
+  if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallNumber').value=el('stallSensitivity').value;el('stallValue').textContent=el('stallSensitivity').value;}
+ }
+ if(data.status==='SAMPLE'&&data.axis){
+   el('stallResult').textContent='SG_RESULT Z'+data.axis+': '+data.sg_result+' · Umbral de parada: '+(2*data.threshold)+' · Velocidad actual: '+data.speed_sps+' pasos/s';
  }
  if(typeof data.stall_enabled==='boolean'&&data.axis)stallData['z'+data.axis+'_enabled']=data.stall_enabled;
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
@@ -61,7 +66,7 @@ async function readLoop(){const decoder=new TextDecoder();
   if(rx.length>4096){log('RX demasiado largo');rx='';}
   let pos;while((pos=rx.indexOf('\n'))>=0){
    const line=rx.slice(0,pos).trim();rx=rx.slice(pos+1);if(!line)continue;
-   try{const d=JSON.parse(line);log('RX ← '+line);response(d)}catch{log('RX texto ← '+line);if(line.includes('Brownout')||line.includes('ESP-ROM:')){verified=false;pingOK=false;selected=0;autoSelected=false;endJog();update();}}
+   try{const d=JSON.parse(line);if(d.status!=='SAMPLE')log('RX ← '+line);response(d)}catch{log('RX texto ← '+line);if(line.includes('Brownout')||line.includes('ESP-ROM:')){verified=false;pingOK=false;selected=0;autoSelected=false;endJog();update();}}
   }
  }}catch(e){log('Error de lectura: '+e.message)}
  finally{if(connected)await disconnect()}
@@ -99,7 +104,11 @@ el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
 el('sensors').onclick=()=>send('GET_SENSORS');
-el('stallSensitivity').oninput=()=>{el('stallValue').textContent=el('stallSensitivity').value};
+function setStallValue(v){const n=Math.max(0,Math.min(255,Math.round(Number(v)||0)));el('stallSensitivity').value=String(n);el('stallNumber').value=String(n);el('stallValue').textContent=String(n);}
+el('stallSensitivity').oninput=()=>setStallValue(el('stallSensitivity').value);
+el('stallNumber').onchange=()=>setStallValue(el('stallNumber').value);
+el('stallMinus').onclick=()=>setStallValue(Number(el('stallSensitivity').value)-1);
+el('stallPlus').onclick=()=>setStallValue(Number(el('stallSensitivity').value)+1);
 el('stallApply').onclick=()=>{if(selected)send('SET_STALL_SENSITIVITY',{axis:selected,threshold:Number(el('stallSensitivity').value)})};
 el('stallEnable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:1}).then(()=>send('GET_SENSORS'))};
 el('stallDisable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:0}).then(()=>send('GET_SENSORS'))};
@@ -108,8 +117,13 @@ el('choose1').onclick=()=>send('SELECT_Z1').then(()=>send('GET_SENSORS'));
 el('choose2').onclick=()=>send('SELECT_Z2').then(()=>send('GET_SENSORS'));
 el('disable').onclick=()=>{endJog();send('DISABLE_CHANNELS')};
 el('stop').onclick=()=>{endJog();send('STOP_TEST')};
-el('speed').oninput=()=>{el('speedValue').textContent=el('speed').value};
-el('speed').onchange=()=>{if(jogHeld)return;send('SET_SPEED',{speed_sps:Number(el('speed').value)})};
+function setSpeedValue(v){const n=Math.max(20,Math.min(1600,Math.round(Number(v)||20)));el('speed').value=String(n);el('speedNumber').value=String(n);el('speedValue').textContent=String(n);}
+function applySpeed(){if(!jogHeld)send('SET_SPEED',{speed_sps:Number(el('speed').value)})}
+el('speed').oninput=()=>setSpeedValue(el('speed').value);
+el('speed').onchange=applySpeed;
+el('speedNumber').onchange=()=>{setSpeedValue(el('speedNumber').value);applySpeed();};
+el('speedMinus').onclick=()=>{setSpeedValue(Number(el('speed').value)-1);applySpeed();};
+el('speedPlus').onclick=()=>{setSpeedValue(Number(el('speed').value)+1);applySpeed();};
 function endJog(){
  if(jogTimer){clearInterval(jogTimer);jogTimer=null;}
  if(!jogHeld)return;
