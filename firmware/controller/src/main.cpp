@@ -5,20 +5,20 @@
 #include "config/HardwareConfig.h"
 
 // VALVER live jog commissioning. TMC2209 EN is active LOW.
-// Motion is limited to one axis, with deadman heartbeat and step budget.
+// Single-axis continuous jog with USB heartbeat deadman.
 // The driver CURRENT must be set for the actual motor before using this firmware.
 namespace {
 constexpr uint8_t Z1_STEP=4,Z1_DIR=5,Z1_EN=6;
 constexpr uint8_t Z2_STEP=7,Z2_DIR=15,Z2_EN=16;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS=350;
-constexpr uint32_t MAX_JOG_MS=2000;
-constexpr uint32_t STEP_INTERVAL_US=12000; // 83.3 microsteps/s, commissioning only
-constexpr uint32_t MAX_JOG_PULSES=160;
+constexpr uint16_t MIN_SPEED_SPS=40, MAX_SPEED_SPS=600;
+uint16_t speedSps=160;
+uint32_t stepIntervalUs=1000000UL/160;
 struct JogState {
   bool active=false;
   uint8_t axis=0;
   bool up=false;
-  uint32_t started=0,lastHeartbeat=0,nextStepUs=0;
+  uint32_t lastHeartbeat=0,nextStepUs=0;
   uint32_t pulses=0;
   unsigned long id=0;
 } jog;
@@ -51,6 +51,14 @@ bool readCommand(const char* json,char *out,size_t cap) {
  if(*p!='"'||n==0)return false;
  out[n]=0;return true;
 }
+bool readSpeed(const char *json,unsigned long &value){
+ const char *p=strstr(json,"\"speed_sps\"");
+ if(!p || !(p=strchr(p+11,':')))return false;
+ ++p;while(*p==' '||*p=='\t')++p;
+ if(*p<'0'||*p>'9')return false;
+ char *end=nullptr;value=strtoul(p,&end,10);
+ return end!=p && (*end==','||*end=='}'||*end==' ');
+}
 void disableDrivers(){
  digitalWrite(Z1_EN,HIGH);digitalWrite(Z2_EN,HIGH);
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
@@ -69,11 +77,16 @@ void dispatch(const char* data) {
  if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.2.0-live-jog\",\"mode\":\"LIMITED_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.3.0-hold-speed\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"LIMITED_MOTOR_JOG\",\"motor_motion_ready\":true,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"max_jog_ms\":%lu,\"max_jog_pulses\":%lu,\"limits_verified_by_firmware\":false}\n",
-     id,jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,
-     (unsigned long)MAX_JOG_MS,(unsigned long)MAX_JOG_PULSES);
+   Serial.printf("{\\"id\\":%lu,\\"status\\":\\"OK\\",\\"state\\":\\"HOLD_MOTOR_JOG\\",\\"motor_motion_ready\\":true,\\"motors_enabled\\":%s,\\"drivers_enabled\\":%s,\\"jog_active\\":%s,\\"selected_axis\\":%u,\\"speed_sps\\":%u,\\"speed_min_sps\\":%u,\\"speed_max_sps\\":%u,\\"limits_verified_by_firmware\\":false}\\n",
+     id,jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
+ }else if(strcmp(cmd,"SET_SPEED")==0){
+   if(jog.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
+   unsigned long requested=0;
+   if(!readSpeed(data,requested)||requested<MIN_SPEED_SPS||requested>MAX_SPEED_SPS){replyError(id,"INVALID_SPEED");return;}
+   speedSps=(uint16_t)requested;stepIntervalUs=1000000UL/speedSps;
+   Serial.printf("{\\"id\\":%lu,\\"status\\":\\"OK\\",\\"speed_sps\\":%u}\\n",id,speedSps);
  }else if(strcmp(cmd,"GET_SENSORS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"optical\":{\"model\":\"EE-SX671\",\"configured\":false,\"triggered\":null},\"stallguard\":{\"model\":\"TMC2209 StallGuard4\",\"z1_uart\":false,\"z2_uart\":false},\"calibration_enabled\":false}\n",id);
  }else if(strcmp(cmd,"SELECT_Z1")==0 || strcmp(cmd,"SELECT_Z2")==0){
@@ -90,7 +103,7 @@ void dispatch(const char* data) {
    disableDrivers();
    digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?HIGH:LOW);
    delayMicroseconds(20); // DIR setup prior to driver enable/STEP
-   jog.axis=axis;jog.up=up;jog.started=millis();jog.lastHeartbeat=millis();
+   jog.axis=axis;jog.up=up;jog.lastHeartbeat=millis();
    jog.nextStepUs=micros()+1500;jog.pulses=0;jog.id=id;
    jog.active=true;
    digitalWrite(axis==1?Z1_EN:Z2_EN,LOW);
@@ -111,10 +124,10 @@ void dispatch(const char* data) {
 void serviceJog(){
  if(!jog.active)return;
  const uint32_t ms=millis();
- if(ms-jog.lastHeartbeat>HEARTBEAT_TIMEOUT_MS||ms-jog.started>=MAX_JOG_MS||jog.pulses>=MAX_JOG_PULSES){
+ if(ms-jog.lastHeartbeat>HEARTBEAT_TIMEOUT_MS){
    unsigned long id=jog.id;const uint32_t pulses=jog.pulses;
    stopJog();
-   Serial.printf("{\"id\":%lu,\"status\":\"DONE\",\"mode\":\"MOTOR_JOG\",\"pulses\":%lu,\"reason\":\"WATCHDOG_OR_LIMIT\",\"drivers_enabled\":false}\n",id,(unsigned long)pulses);
+   Serial.printf("{\"id\":%lu,\"status\":\"DONE\",\"mode\":\"MOTOR_JOG\",\"pulses\":%lu,\"reason\":\"HEARTBEAT_LOST\",\"drivers_enabled\":false}\n",id,(unsigned long)pulses);
    return;
  }
  const uint32_t us=micros();
@@ -122,7 +135,7 @@ void serviceJog(){
    uint8_t pin=jog.axis==1?Z1_STEP:Z2_STEP;
    digitalWrite(pin,HIGH);delayMicroseconds(5);digitalWrite(pin,LOW);
    ++jog.pulses;
-   jog.nextStepUs=micros()+STEP_INTERVAL_US;
+   jog.nextStepUs=micros()+stepIntervalUs;
  }
 }
 }
