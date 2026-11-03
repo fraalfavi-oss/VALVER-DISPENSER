@@ -40,3 +40,31 @@ Devuelve configurado/conectado=false y lecturas=null hasta instrumentar los sens
 3. Cableado real de UART y DIAG para los dos BTT TMC2209 V1.3.
 4. Ficha de corriente nominal NEMA11, transmisión Z (husillo/paso) y finales de carrera.
 5. Fuente de potencia y comprobación eléctrica antes de habilitar EN/VM.
+
+
+# Puesta en marcha segura de los motores NEMA 11 · VALVER
+
+## Estado actual
+
+**NO CONECTAR 24 V TODAVÍA.** El firmware permite únicamente las señales GPIO STEP/DIR con EN HIGH (TMC2209 deshabilitado). No se ha implementado habilitación de potencia ni corriente real.
+
+## Funciones implementadas en la rama de pruebas
+
+- Selección Z1/Z2 mutuamente excluyente y autorización de una operación.
+- Mantener pulsado subir/bajar: comandos JOG_GPIO_START_Z{1,2}_{UP,DOWN}; latido JOG_GPIO_HEARTBEAT cada 150 ms; soltar JOG_GPIO_STOP.
+- Parada autónoma si no hay latido en 350 ms; límite absoluto de 10 s; respuesta DONE por watchdog. STOP_TEST también aborta.
+- EN GPIO6 y GPIO16 permanecen HIGH; **los motores nunca reciben potencia de habilitación por software**.
+- GET_SENSORS informa por ahora de sensores no conectados/no verificados; no hay calibración física.
+
+## Bloqueos que faltan antes de movimiento real
+
+1. Confirmar etiqueta de ambos NEMA 11: corriente nominal por fase, número de cables, resistencia y modelo.
+2. Verificar A1/A2 y B1/B2 con multímetro, orientación correcta de los módulos y 24V/GND hacia VM, no hacia VIO.
+3. Configurar TMC2209 por UART real; comprobar respuestas y corriente RMS. El valor de fábrica de un módulo BTT puede ser excesivo para NEMA 11.
+4. Asignar y comprobar dos finales de carrera superiores independientes; definir sentido positivo, límites de carrera por pasos y homing a velocidad segura.
+5. Asignar GPIO y verificar con multímetro sensor óptico EE-SX671 NPN y pull-up a 3,3V; validar interrupción del haz en ambos estados.
+6. Conectar DIAG/UART y validar StallGuard4 con motor alimentado y parámetros apropiados. No se usará para medir resistencia de bobinas ni como único mecanismo de detección de mesa.
+7. Añadir protección por sobrecorriente/fusible y parada de emergencia física, test de desconexión USB y rearme manual después de fallos.
+8. Solo entonces implementar y activar EN de forma supervisada. No confiar en un botón STOP software como único dispositivo de seguridad.
+
+Referencias: https://global.bttwiki.com/TMC2209.html y https://industrial.omron.es/es/products/EE-SX671
