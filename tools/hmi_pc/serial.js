@@ -27,7 +27,7 @@ function response(data){
  if(data.status==='ERROR'){log('ERROR: '+data.code);endJog();}
  if(data.status==='DONE'||data.state==='JOG_STOPPED'||data.state==='STOPPED')testing=false;
  if(data.status==='ACCEPTED'&&data.mode==='MOTOR_JOG')testing=true;
- if(data.reason==='WATCHDOG_OR_LIMIT'){endJog();}
+ if(data.reason==='HEARTBEAT_LOST'){endJog();}
  el('last').textContent=data.status+' · '+(data.code||data.mode||data.state||data.reply||'ESP32');
  update();
 }
