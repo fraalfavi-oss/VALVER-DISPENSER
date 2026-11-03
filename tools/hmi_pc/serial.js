@@ -1,5 +1,56 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40};
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null;
 const el=id=>document.getElementById(id);
+function resetLoad(axis=selected){
+ loadSamples=[];loadBaselineSamples=[];loadBaseline=null;
+ el('loadRaw').textContent='—';el('loadPercent').textContent='—';
+ el('loadBaseline').textContent='Referencia sin calibrar';
+ el('loadDirection').textContent='Z'+(axis||'?')+' · Sin lectura';
+ el('loadFill').style.width='0%';
+ el('loadStatus').textContent='Esperando lecturas válidas';
+ drawLoadChart();
+}
+function drawLoadChart(){
+ const canvas=el('loadChart');const ctx=canvas.getContext('2d');
+ const w=canvas.width,h=canvas.height;
+ ctx.clearRect(0,0,w,h);
+ ctx.fillStyle='#0c1e31';ctx.fillRect(0,0,w,h);
+ ctx.lineWidth=1;ctx.strokeStyle='#29435c';
+ for(let i=0;i<=4;i++){let y=6+(h-12)*i/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+ if(loadSamples.length<2)return;
+ const count=80,spacing=w/(count-1);ctx.beginPath();
+ for(let i=0;i<loadSamples.length;i++){
+  const p=loadSamples[i],x=w-(loadSamples.length-1-i)*spacing,y=h-6-(h-12)*p/100;
+  if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+ }
+ ctx.lineWidth=2.5;ctx.strokeStyle='#42c9b7';ctx.stroke();
+}
+function receiveLoad(d){
+ if(!Number.isFinite(d.sg_result)||![1,2].includes(d.axis))return;
+ if(selected!==d.axis)return;
+ const raw=d.sg_result,axis=d.axis,dir=d.direction==='UP'?'SUBIR':d.direction==='DOWN'?'BAJAR':'GIRO';
+ el('loadRaw').textContent=String(raw);
+ el('loadDirection').textContent='Z'+axis+' · '+dir+' · '+d.speed_sps+' pasos/s';
+ if(raw>0&&loadBaselineSamples.length<5){
+  loadBaselineSamples.push(raw);
+  if(loadBaselineSamples.length===5){
+    const sorted=[...loadBaselineSamples].sort((a,b)=>a-b);
+    loadBaseline=sorted[2]; // median of first five unloaded samples
+  }
+ }
+ if(loadBaseline===null){
+   el('loadPercent').textContent='—';
+   el('loadBaseline').textContent='Tomando referencia en vacío ('+loadBaselineSamples.length+'/5)';
+   el('loadStatus').textContent=raw===0?'Sin lectura útil / SG_RESULT = 0':'Midiendo referencia';
+   return;
+ }
+ const relative=Math.max(0,Math.min(100,Math.round((loadBaseline-raw)/Math.max(1,loadBaseline)*100)));
+ el('loadPercent').textContent=relative+'%';
+ el('loadBaseline').textContent='Referencia libre: '+loadBaseline+' · índice relativo';
+ el('loadStatus').textContent='Z'+axis+' · LECTURA EN VIVO';
+ el('loadFill').style.width=relative+'%';
+ loadSamples.push(relative);if(loadSamples.length>80)loadSamples.shift();
+ drawLoadChart();
+}
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
 function update(){
  const ready=connected&&pingOK&&verified&&!testing;
@@ -44,16 +95,38 @@ function response(data){
  }
  if(data.stallguard){
   stallData={...stallData,...data.stallguard};
+  // Configure passive monitoring once the UART is confirmed.
+  // This does not activate the automatic stall stop.
+  for(const axis of [1,2]){
+    if(stallData['z'+axis+'_uart']&&!stallData['z'+axis+'_monitoring']&&!monitorRequested[axis]){
+      monitorRequested[axis]=true;
+      send('MONITOR_STALL',{axis});
+    }
+  }
   el('sensorReadout').textContent='StallGuard4 · Z1 UART: '+(stallData.z1_uart?'OK':'sin conexión')+' · Z2 UART: '+(stallData.z2_uart?'OK':'sin conexión');
   if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallNumber').value=el('stallSensitivity').value;el('stallValue').textContent=el('stallSensitivity').value;}
  }
  if(data.status==='SAMPLE'&&data.axis){
+   receiveLoad(data);
    el('stallResult').textContent='SG_RESULT Z'+data.axis+': '+data.sg_result+' · Umbral de parada: '+(2*data.threshold)+' · Velocidad actual: '+data.speed_sps+' pasos/s';
+ }
+ if(typeof data.monitoring==='boolean'&&data.axis){
+   stallData['z'+data.axis+'_monitoring']=data.monitoring;
+   send('GET_SENSORS');
  }
  if(typeof data.stall_enabled==='boolean'&&data.axis)stallData['z'+data.axis+'_enabled']=data.stall_enabled;
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
- if(data.status==='ERROR'){log('ERROR: '+data.code);endJog();}
- if(data.status==='DONE'||data.state==='JOG_STOPPED'||data.state==='STOPPED')testing=false;
+ if(data.status==='ERROR'){
+   log('ERROR: '+data.code);
+   if(data.code==='UART_NOT_CONNECTED'){
+     el('loadStatus').textContent='Sin UART · Verificar cableado';
+   }
+   endJog();
+ }
+ if(data.status==='DONE'||data.state==='JOG_STOPPED'||data.state==='STOPPED'){
+   testing=false;
+   el('loadStatus').textContent='Motor detenido · última lectura';
+ }
  if(data.status==='ACCEPTED'&&data.mode==='MOTOR_JOG')testing=true;
  if(['HEARTBEAT_LOST','STALL_DETECTED','STALL_UART_LOST'].includes(data.reason)){log('PARADA AUTOMÁTICA: '+data.reason+(data.sg_result!==undefined?' · SG_RESULT='+data.sg_result:''));endJog();send('GET_SENSORS');}
  el('last').textContent=data.status+' · '+(data.code||data.mode||data.state||data.reply||'ESP32');
@@ -76,7 +149,7 @@ async function connect(){
  try{
   port=await navigator.serial.requestPort();await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;pingOK=false;verified=false;selected=0;autoSelected=false;update();
+  connected=true;pingOK=false;verified=false;selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
   log('COM abierto');void readLoop();void send('PING');
  }catch(e){log('Error de conexión: '+e.message);await disconnect();}
 }
@@ -113,8 +186,8 @@ el('stallApply').onclick=()=>{if(selected)send('SET_STALL_SENSITIVITY',{axis:sel
 el('stallEnable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:1}).then(()=>send('GET_SENSORS'))};
 el('stallDisable').onclick=()=>{if(selected)send('ENABLE_STALL',{axis:selected,enabled:0}).then(()=>send('GET_SENSORS'))};
 el('readiness').onclick=()=>send('GET_READINESS');
-el('choose1').onclick=()=>send('SELECT_Z1').then(()=>send('GET_SENSORS'));
-el('choose2').onclick=()=>send('SELECT_Z2').then(()=>send('GET_SENSORS'));
+el('choose1').onclick=()=>{resetLoad(1);return send('SELECT_Z1').then(()=>send('GET_SENSORS'))};
+el('choose2').onclick=()=>{resetLoad(2);return send('SELECT_Z2').then(()=>send('GET_SENSORS'))};
 el('disable').onclick=()=>{endJog();send('DISABLE_CHANNELS')};
 el('stop').onclick=()=>{endJog();send('STOP_TEST')};
 function setSpeedValue(v){const n=Math.max(20,Math.min(1600,Math.round(Number(v)||20)));el('speed').value=String(n);el('speedNumber').value=String(n);el('speedValue').textContent=String(n);}
@@ -127,13 +200,13 @@ el('speedPlus').onclick=()=>{setSpeedValue(Number(el('speed').value)+1);applySpe
 function endJog(){
  if(jogTimer){clearInterval(jogTimer);jogTimer=null;}
  if(!jogHeld)return;
- jogHeld=false;testing=false;update();
+ jogHeld=false;testing=false;el('loadStatus').textContent='Motor detenido · última lectura';update();
  void send('JOG_MOTOR_STOP');
 }
 function beginJog(b,e){
  if(b.disabled||jogHeld||!connected||!verified)return;
  if(e.pointerType==='mouse'&&e.button!==0)return;
- jogHeld=true;testing=true;update();
+ jogHeld=true;testing=true;resetLoad(selected);el('loadStatus').textContent='Arrancando · se requieren ≥400 pasos/s';update();
  b.setPointerCapture?.(e.pointerId);
  void send(b.dataset.cmd);
  jogTimer=setInterval(()=>{
@@ -152,6 +225,7 @@ window.addEventListener('pointerup',endJog);
 window.addEventListener('blur',endJog);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)endJog()});
 update();
+resetLoad(0);
 const descriptions={
 home:['CONTROL Z','Selecciona una sola aguja. Los motores están energizados únicamente durante el movimiento.'],
 tip:['CALIBRACIÓN DE PUNTA','Preparación: validar cableado y estado óptico en ambos sentidos; después referenciar Z1/Z2 por separado. Calibración física BLOQUEADA.'],
