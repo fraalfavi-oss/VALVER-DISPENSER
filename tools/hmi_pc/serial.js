@@ -88,7 +88,10 @@ function response(data){
    verified=true;
 
  }
- if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);}
+ if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){
+   el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);
+   if(!jogHeld&&data.speed_sps<400)el('loadStatus').textContent='Para medir carga, usa 400 pasos/s o más';
+ }
  if(typeof data.selected_axis==='number'){
   selected=data.selected_axis;
   if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallNumber').value=el('stallSensitivity').value;el('stallValue').textContent=el('stallSensitivity').value;}
