@@ -19,10 +19,15 @@ function update(){
  document.querySelectorAll('.test').forEach(b=>b.disabled=(!jogHeld&&(!ready||selected===0))||!b.dataset.cmd.includes('Z'+selected));
 }
 function response(data){
- if(data.reply==='PONG'){pingOK=true;log('Comunicación verificada con PONG');send('GET_STATUS');}
+ if(data.reply==='PONG'){
+  pingOK=true;
+  log('Comunicación verificada con PONG');
+  if(!autoSelected){autoSelected=true;send('SELECT_Z1');log('Z1: selección automática enviada');}
+  send('GET_STATUS');
+ }
  if(data.state==='HOLD_MOTOR_JOG'){
    verified=true;
-   if(!autoSelected&&selected===0){autoSelected=true;send('SELECT_Z1');log('Z1 seleccionado automáticamente. Puedes cambiar a Z2.');}
+
  }
  if(Number.isFinite(data.speed_sps)){el('speed').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);}
  if(typeof data.selected_axis==='number')selected=data.selected_axis;
@@ -52,7 +57,7 @@ async function connect(){
   port=await navigator.serial.requestPort();await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
   connected=true;pingOK=false;verified=false;selected=0;autoSelected=false;update();
-  log('COM abierto');void readLoop();
+  log('COM abierto');void readLoop();void send('PING');
  }catch(e){log('Error de conexión: '+e.message);await disconnect();}
 }
 async function disconnect(){
