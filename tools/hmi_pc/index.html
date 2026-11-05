@@ -94,9 +94,9 @@ body.cold-ui #jogHint{display:none!important}
 <div class="axis-buttons"><button id="motorZ2Up" disabled>▲ MANTENER SUBIR</button><button id="motorZ2Down" disabled>▼ MANTENER BAJAR</button></div></div>
 </div>
 <div class="speed-box"><div class="speed-caption"><label for="holdSpeed">VELOCIDAD Z1 Y Z2</label><strong><span id="holdSpeedValue">110</span> pasos/s</strong></div>
-<input id="holdSpeed" type="range" min="80" max="500" step="10" value="110" disabled>
-<div class="speed-ends"><span>80 · suave</span><span>500 · rápido</span></div>
-<small id="holdSpeedInfo">Ajusta con los motores detenidos. Arranque y aceleración progresivos.</small></div>
+<input id="holdSpeed" type="range" min="80" max="1600" step="10" value="110" disabled>
+<div class="speed-ends"><span>80 · suave</span><span>1600 · rápido</span></div>
+<small id="holdSpeedInfo">Ajusta con los motores detenidos. Arranque y aceleración progresivos. Dirección SUBIR/BAJAR corregida por software.</small></div>
 <div class="simple-settings">
 <label for="motorRated">Corriente nominal NEMA 11 (mA): <input id="motorRated" type="number" min="150" max="2000" step="10" placeholder="Según etiqueta"></label>
 <label><input id="motorChecked" type="checkbox"> Verificados 12 V, polaridad, VIO, GND, bobinas y corriente nominal</label>
@@ -132,4 +132,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-hold-speed-2"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-fast-dir-3"></script></body></html>
