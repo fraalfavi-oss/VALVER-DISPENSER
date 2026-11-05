@@ -211,9 +211,11 @@ function updateMotorTest(){
    el('z'+axis+'Comms').textContent=testReadyUart[axis]?'UART OK':'UART SIN RESPUESTA';
    el('z'+axis+'Comms').style.color=testReadyUart[axis]?'#8bdfb4':'#f1b36e';
    for(const dir of ['Up','Down']){
-     const id='motorZ'+axis+dir;
-     // Keep held button enabled: disabling it may lose pointer capture.
-     el(id).disabled=(!ready||!approved||!testReadyUart[axis])&&!(pressHeld&&heldControlId===id);
+     for(const prefix of ['motorZ','calZ']){
+       const id=prefix+axis+dir;
+       // Retain pointer capture on whichever touchscreen button is held.
+       el(id).disabled=(!ready||!approved||!testReadyUart[axis])&&!(pressHeld&&heldControlId===id);
+     }
    }
  }
  el('motorStop').disabled=!connected;
@@ -282,7 +284,7 @@ function startMotorHold(axis,up,e){
  if(!connected||!pingOK||!verified||pressHeld||preparingTest||trialActive||!testReadyUart[axis]||
     !el('motorChecked').checked)return;
  heldAxes.delete(axis);updateHoldStatus();
- pressHeld=true;heldControlId='motorZ'+axis+(up?'Up':'Down');
+ pressHeld=true;heldControlId=e.currentTarget?.id||('motorZ'+axis+(up?'Up':'Down'));
  const btn=el(heldControlId);
  btn.setPointerCapture?.(e.pointerId);
  preparingTest=true;pendingPulse={axis,up};armedTestAxis=0;
@@ -650,7 +652,10 @@ for(const axis of [1,2]){
    void send('CLEAR_Z_HEIGHTS',{axis});
  };
 }
-for(const [axis,up,id] of [[1,true,'motorZ1Up'],[1,false,'motorZ1Down'],[2,true,'motorZ2Up'],[2,false,'motorZ2Down']]){
+for(const [axis,up,id] of [
+ [1,true,'motorZ1Up'],[1,false,'motorZ1Down'],[2,true,'motorZ2Up'],[2,false,'motorZ2Down'],
+ [1,true,'calZ1Up'],[1,false,'calZ1Down'],[2,true,'calZ2Up'],[2,false,'calZ2Down']
+]){
  const btn=el(id);
  btn.addEventListener('pointerdown',e=>startMotorHold(axis,up,e));
  btn.addEventListener('pointerup',()=>stopHeldMotor(true));
