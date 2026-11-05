@@ -218,6 +218,9 @@ constexpr uint16_t HOLD_SPEED_MIN_SPS=80,HOLD_SPEED_MAX_SPS=8000,HOLD_START_SPS=
 constexpr float HOLD_ACCEL_SPS2=6000.0f;
 uint16_t holdTargetSps=1600; // Default is useful travel speed; HMI slider can select up to 8000.
 constexpr uint32_t HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
+constexpr uint32_t HOLD_IDLE_TIMEOUT_MS=1200;
+bool holdingAxis[3]={false,false,false};
+uint32_t holdIdleHeartbeatMs=0;
 struct SavedZSettings{
  uint32_t magic=0x56414C56; // VALV
  uint16_t version=1,speed=1600;
@@ -261,8 +264,28 @@ bool readSignedZValue(const char* json,long &value){
 void abortTrial(){
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
  disableDrivers();
+ holdingAxis[1]=false;holdingAxis[2]=false;
  digitalWrite(Z1_DIR,LOW);digitalWrite(Z2_DIR,LOW);
  trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
+}
+// Normal button release: no STEP pulses, keep driver EN low and IHOLD active.
+void parkTrial(){
+ if(!trial.active)return;
+ const uint8_t axis=trial.axis;
+ digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
+ trial.active=false;trial.high=false;
+ holdingAxis[axis]=true;
+ holdIdleHeartbeatMs=millis();
+ armedAxis=0;armedMa=0;armedAt=0;
+}
+void serviceHold(){
+ if(!holdingAxis[1]&&!holdingAxis[2])return;
+ if((uint32_t)(millis()-holdIdleHeartbeatMs)>HOLD_IDLE_TIMEOUT_MS){
+   const bool a=holdingAxis[1],b=holdingAxis[2];
+   abortTrial();
+   Serial.printf(R"json({"status":"DONE","reason":"HOLD_WATCHDOG_EXPIRED","z1_released":%s,"z2_released":%s,"drivers_enabled":false})json" "\n",
+     a?"true":"false",b?"true":"false");
+ }
 }
 void serviceRgb(){
  const uint8_t axis=trial.active?trial.axis:0;
@@ -291,8 +314,12 @@ void serviceTrial(){
  if((uint32_t)(ms-trial.heartbeat)>HOLD_HEARTBEAT_TIMEOUT_MS ||
     (uint32_t)(t-trial.began)>HOLD_MAX_MS*1000UL){
    const unsigned long id=trial.id;const uint32_t steps=trial.count;
-   abortTrial();
-   Serial.printf(R"json({"id":%lu,"status":"DONE","reason":"HOLD_TIMEOUT_OR_LINK_LOST","pulses":%lu,"drivers_enabled":false})json" "\n",id,(unsigned long)steps);
+   const bool linkLost=(uint32_t)(ms-trial.heartbeat)>HOLD_HEARTBEAT_TIMEOUT_MS;
+   const uint8_t axis=trial.axis;
+   if(linkLost)abortTrial();
+   else parkTrial();
+   Serial.printf(R"json({"id":%lu,"status":"DONE","reason":"HOLD_TIMEOUT_OR_LINK_LOST","axis":%u,"pulses":%lu,"drivers_enabled":%s,"holding":%s})json" "\n",
+     id,axis,(unsigned long)steps,linkLost?"false":"true",linkLost?"false":"true");
    return;
  }
  if((uint32_t)(ms-trial.lastRampMs)>=20){
@@ -321,7 +348,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -329,6 +356,7 @@ bool coldCommandAllowed(const char* cmd){
 // Local readback only. This does NOT validate external power, polarity or wiring.
 void replyColdCheck(unsigned long id){
  if(trial.active){replyError(id,"TEST_RUNNING");return;}
+ if(holdingAxis[1]||holdingAxis[2]){replyError(id,"COLD_CHECK_UNAVAILABLE_WHILE_HOLDING");return;}
  disableDrivers();
  const bool en1=digitalRead(Z1_EN)==HIGH,en2=digitalRead(Z2_EN)==HIGH;
  const bool st1=digitalRead(Z1_STEP)==LOW,st2=digitalRead(Z2_STEP)==LOW;
@@ -398,11 +426,13 @@ void dispatch(const char* data) {
      id,z1?"true":"false",z2?"true":"false");
  }else if(strcmp(cmd,"PREPARE_TEST")==0){
    if(trial.active){replyError(id,"TEST_RUNNING");return;}
-   abortTrial();
+   armedAxis=0;armedMa=0;armedAt=0;
    unsigned long axis=0,confirm=0;
    if(!readUIntField(data,"axis",axis)||!readUIntField(data,"confirm",confirm)||
       axis<1||axis>2||confirm!=1){replyError(id,"MOTOR_ENABLE_CONFIRMATION_REQUIRED");return;}
-   if(!probeStall((uint8_t)axis)){replyError(id,"UART_NOT_READY_NO_MOTION");return;}
+   digitalWrite(axis==1?Z1_EN:Z2_EN,HIGH);
+   holdingAxis[axis]=false;
+   if(!probeStall((uint8_t)axis)){abortTrial();replyError(id,"UART_NOT_READY_NO_MOTION");return;}
    TMC2209Stepper &d=stallDriver((uint8_t)axis);
    const uint8_t before=d.IFCNT();
    d.pdn_disable(true);
@@ -433,7 +463,9 @@ void dispatch(const char* data) {
    if(!probeStall((uint8_t)axis)){abortTrial();replyError(id,"UART_LOST_NO_MOTION");return;}
    TMC2209Stepper &d=stallDriver((uint8_t)axis);
    if(d.drv_err()||d.toff()!=3||d.rms_current()>HOLD_RMS_MAX_MA){abortTrial();replyError(id,"DRIVER_FAULT_NO_MOTION");return;}
-   disableDrivers();
+   // Preserve opposite driver's holding torque.
+   digitalWrite(axis==1?Z1_EN:Z2_EN,HIGH);
+   holdingAxis[axis]=false;
    // Correct both axes' vertical orientation in software; do not swap motor coils.
    digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?LOW:HIGH);
    digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);delayMicroseconds(30);
@@ -443,6 +475,18 @@ void dispatch(const char* data) {
    trial.heartbeat=millis();trial.lastRampMs=trial.heartbeat;
    digitalWrite(axis==1?Z1_EN:Z2_EN,LOW);
    Serial.printf(R"json({"id":%lu,"status":"ACCEPTED","hold_running":true,"axis":%lu,"rms_target_ma":%u,"hold_speed_sps":%u,"drivers_enabled":true})json" "\n",id,axis,armedMa,holdTargetSps);
+ }else if(strcmp(cmd,"HOLD_STOP")==0){
+   if(trial.active){
+     const uint8_t axis=trial.axis;const uint32_t pulses=trial.count;
+     parkTrial();
+     Serial.printf(R"json({"id":%lu,"status":"OK","hold_stopped":true,"axis":%u,"pulses":%lu,"drivers_enabled":true,"holding":true})json" "\n",
+       id,axis,(unsigned long)pulses);
+   }else{
+     Serial.printf(R"json({"id":%lu,"status":"OK","hold_stopped":false,"drivers_enabled":%s})json" "\n",id,
+       (holdingAxis[1]||holdingAxis[2])?"true":"false");
+   }
+ }else if(strcmp(cmd,"HOLD_IDLE_HEARTBEAT")==0){
+   if(holdingAxis[1]||holdingAxis[2])holdIdleHeartbeatMs=millis();
  }else if(strcmp(cmd,"HOLD_HEARTBEAT")==0){
    if(trial.active)trial.heartbeat=millis();
  }else if(strcmp(cmd,"GET_COLD_CHECK")==0 || strcmp(cmd,"COLD_SELF_TEST")==0){
@@ -450,7 +494,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.9-persistent-height-rgb\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.0.0-touch-hold\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -631,6 +675,7 @@ void loop(){
    }
  }
  serviceTrial();
+ serviceHold();
  serviceRgb();
  // Legacy motion service disabled.
 }
