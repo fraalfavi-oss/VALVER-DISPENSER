@@ -256,6 +256,7 @@ void dispatch(const char* data) {
    const uint8_t before=d.IFCNT();
    d.pdn_disable(true);
    d.I_scale_analog(false);
+   d.mstep_reg_select(true); // Force microstep setting from UART, not MS1/MS2 jumpers.
    d.toff(3);
    d.microsteps(16);
    d.en_spreadCycle(false);
@@ -264,7 +265,7 @@ void dispatch(const char* data) {
    d.rms_current(target);
    const uint8_t after=d.IFCNT();
    if(!probeStall((uint8_t)axis)||after==before||!d.pdn_disable()||d.I_scale_analog()||
-      d.toff()!=3||d.microsteps()!=16||d.irun()==0){
+      !d.mstep_reg_select()||d.toff()!=3||d.microsteps()!=16||d.irun()==0){
      abortTrial();replyError(id,"UART_CURRENT_READBACK_FAILED");return;
    }
    armedAxis=(uint8_t)axis;armedMa=target;armedAt=millis();
