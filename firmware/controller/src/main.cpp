@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <TMCStepper.h>
+#include <Adafruit_NeoPixel.h>
 #include "driver/ledc.h"
 #include "config/SystemConfig.h"
 #include "config/HardwareConfig.h"
@@ -13,6 +14,16 @@ namespace {
 // USB-only cold commissioning. Neither motor movement nor TMC UART is permitted.
 // A reviewed firmware change is required before any powered tests.
 constexpr bool COLD_INSPECTION_ONLY=false; // UART diagnostic only; legacy jog forbidden
+// DevKitC-1 onboard addressable LED: v1.0 GPIO48, v1.1 GPIO38.
+constexpr uint8_t RGB_DEFAULT_PIN=48;
+uint8_t rgbPin=RGB_DEFAULT_PIN, rgbDisplayedAxis=255, rgbFrame=0;
+uint32_t rgbLastMs=0;
+Adafruit_NeoPixel rgbLed(1,RGB_DEFAULT_PIN,NEO_GRB+NEO_KHZ800);
+void rgbOff(){
+ rgbLed.clear();
+ rgbLed.show();
+ rgbDisplayedAxis=0;
+}
 constexpr uint8_t Z1_STEP=4,Z1_DIR=5,Z1_EN=6;
 constexpr uint8_t Z2_STEP=7,Z2_DIR=15,Z2_EN=16;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS=350;
@@ -194,6 +205,25 @@ void abortTrial(){
  digitalWrite(Z1_DIR,LOW);digitalWrite(Z2_DIR,LOW);
  trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
 }
+void serviceRgb(){
+ const uint8_t axis=trial.active?trial.axis:0;
+ const uint32_t now=millis();
+ if(axis==rgbDisplayedAxis&&(axis==0||now-rgbLastMs<180))return;
+ rgbFrame=(axis!=rgbDisplayedAxis)?0:(uint8_t)((rgbFrame+1)%6);
+ rgbDisplayedAxis=axis;rgbLastMs=now;
+ if(axis==1){
+   static const uint8_t g[6]={1,8,20,34,20,8};
+   static const uint8_t b[6]={50,78,112,165,125,82};
+   rgbLed.setPixelColor(0,0,g[rgbFrame],b[rgbFrame]);
+ }else if(axis==2){
+   static const uint8_t r[6]={62,95,135,175,125,82};
+   static const uint8_t g[6]={0,0,3,8,3,0};
+   rgbLed.setPixelColor(0,r[rgbFrame],g[rgbFrame],0);
+ }else{
+   rgbLed.clear();
+ }
+ rgbLed.show();
+}
 void serviceTrial(){
  if(!trial.active)return;
  const uint32_t t=micros(),ms=millis();
@@ -228,7 +258,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED","GET_RGB_PIN","SET_RGB_PIN"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -253,7 +283,23 @@ void dispatch(const char* data) {
  unsigned long id=0;char cmd[54];
  if(!readId(data,id)||!readCommand(data,cmd,sizeof(cmd))){replyError(0,"INVALID_REQUEST");return;}
  if(!coldCommandAllowed(cmd)){replyError(id,"TEST_MODE_LEGACY_COMMAND_LOCKED");return;}
- if(strcmp(cmd,"SET_HOLD_SPEED")==0){
+ if(strcmp(cmd,"GET_RGB_PIN")==0){
+   Serial.printf(R"json({"id":%lu,"status":"OK","rgb_pin":%u,"rgb_mode":"MOTOR_ACTIVE_ONLY"})json" "\n",id,rgbPin);
+ }else if(strcmp(cmd,"SET_RGB_PIN")==0){
+   if(trial.active){replyError(id,"STOP_BEFORE_RGB_PIN_CHANGE");return;}
+   unsigned long requested=0;
+   if(!readUIntField(data,"pin",requested)||(requested!=38&&requested!=48)){
+     replyError(id,"RGB_PIN_INVALID");return;
+   }
+   if(rgbPin!=(uint8_t)requested){
+     rgbOff();
+     rgbPin=(uint8_t)requested;
+     rgbLed.setPin(rgbPin);
+     rgbDisplayedAxis=255;
+     serviceRgb();
+   }
+   Serial.printf(R"json({"id":%lu,"status":"OK","rgb_pin":%u,"rgb_mode":"MOTOR_ACTIVE_ONLY"})json" "\n",id,rgbPin);
+ }else if(strcmp(cmd,"SET_HOLD_SPEED")==0){
    if(trial.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
    unsigned long requested=0;
    if(!readUIntField(data,"speed_sps",requested)||
@@ -324,7 +370,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.3-faster-dir-corrected\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.4-axis-rgb\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -486,6 +532,9 @@ void setup(){
    stepClockReady=false; // no PWM STEP timer configured
  }
  disableDrivers();
+ rgbLed.begin();
+ rgbLed.setBrightness(55);
+ rgbOff();
  Serial.begin(valver::kDefaultBaudRate);
 }
 void loop(){
@@ -501,5 +550,6 @@ void loop(){
    }
  }
  serviceTrial();
+ serviceRgb();
  // Legacy motion service disabled.
 }
