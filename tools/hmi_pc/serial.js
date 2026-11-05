@@ -195,7 +195,9 @@ function showZHeights(d){
    heightPositions[axis]=Number(h.position??0);
    heightFlags[axis]={referenced:h.referenced===true,restSet:h.rest_set===true,dispenseSet:h.dispense_set===true};
    const ref=el('z'+axis+'RefState');
-   ref.textContent=heightFlags[axis].referenced?'ORIGEN REFERENCIADO':'SIN ORIGEN · abrir calibración';
+   const flags=heightFlags[axis];
+   ref.textContent=flags.referenced?'ALTURAS LISTAS':(!flags.restSet?'MARCA REPOSO Y DISPENSACIÓN':
+      (!flags.dispenseSet?'MARCA DISPENSACIÓN':'TRAS ENCENDER: ESTOY EN REPOSO'));
    ref.classList.toggle('is-ready',heightFlags[axis].referenced);
    el('z'+axis+'Position').textContent='Pos. '+(h.position??0);
    el('z'+axis+'RestValue').textContent=h.rest_set===true?String(h.rest):'—';
@@ -218,9 +220,10 @@ function updateMotorTest(){
  el('holdSpeed').disabled=!connected||!verified||preparingTest||trialActive;
  for(const axis of [1,2]){
    const active=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld&&testReadyUart[axis];
-   for(const kind of ['Rest','Dispense'])el('saveZ'+axis+kind).disabled=!active;
+   for(const kind of ['Rest','Dispense'])el('saveZ'+axis+kind).disabled=!(active&&heldAxes.has(axis));
    el('clearZ'+axis+'Heights').disabled=!active;
-   el('referenceZ'+axis+'Rest').disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].restSet);
+   el('referenceZ'+axis+'Rest').disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].restSet&&!heightFlags[axis].referenced);
+   el('referenceZ'+axis+'Rest').hidden=heightFlags[axis].referenced||!heightFlags[axis].restSet;
    for(const [kind,label] of [['restSet','Rest'],['dispenseSet','Dispense']]){
      el('gotoZ'+axis+label).disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].referenced&&heightFlags[axis][kind]);
    }
@@ -261,7 +264,7 @@ function startAutoHeight(axis,kind){
     !heldAxes.has(axis)||!heightFlags[axis].referenced||
     !(kind===1?heightFlags[axis].restSet:heightFlags[axis].dispenseSet))return;
  const to=kind===1?'REPOSO':'DISPENSACIÓN';
- if(!window.confirm('Z'+axis+' irá a '+to+' (máximo 4.000 micropasos por orden).\nSupervisa la aguja y mantén PARADA accesible. ¿Continuar?'))return;
+ // Direct one-touch move. Firmware retains max distance, current safety and watchdog.
  autoActive=true;trialActive=true;armedTestAxis=axis;
  heldAxes.delete(axis);updateHoldStatus();
  el('motorTestState').textContent='Z'+axis+' · moviendo automáticamente a '+to+'…';
@@ -343,7 +346,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.1.0-z-presets';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.1.1-simple-heights';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -372,8 +375,8 @@ function response(data){
      el('heightCalNotice').textContent='ERROR: memoria permanente no disponible; no se pueden guardar alturas ni velocidad.';
  }
  if(data.height_saved){
-   el('heightCalNotice').textContent='Z'+data.axis+' · '+(data.kind===1?'Reposo':'Dispensación')+
-      ' guardada en '+data.position_steps+' micropasos relativos · guardado en ESP32. Sin origen físico.';
+   el('heightCalNotice').textContent='Z'+data.axis+' · '+(data.kind===1?'REPOSO':'DISPENSACIÓN')+
+      ' guardado. Marca la otra altura y usa IR A REPOSO / IR A DISPENSACIÓN en CONTROL Z.';
  }
  if(data.shared_height_saved){
    el('heightCalNotice').textContent='Valor '+data.value+' guardado para '+
@@ -411,9 +414,10 @@ function response(data){
  }
  if(data.state==='STOPPED'){
    heldAxes.clear();updateHoldStatus();
+   void send('GET_Z_HEIGHTS');
  }
  if(data.reference_set===true){
-   el('heightCalNotice').textContent='Z'+data.axis+' referenciado en reposo. Ya puedes tocar EN REPOSO o EN DISPENSACIÓN.';
+   el('heightCalNotice').textContent='Z'+data.axis+' · LISTO. Pulsa IR A REPOSO o IR A DISPENSACIÓN.';
    void send('GET_Z_HEIGHTS');
  }
  if(data.auto_move_started===true){
@@ -424,7 +428,7 @@ function response(data){
    if(axis===1||axis===2)heldAxes.add(axis);
    updateHoldStatus();
    stopTrialHeartbeat();
-   el('motorTestState').textContent='Z'+data.axis+' · ALTURA ALCANZADA · reteniendo posición';
+   el('motorTestState').textContent='Z'+data.axis+' · LLEGÓ A SU ALTURA · posición mantenida';
    void send('GET_Z_HEIGHTS');
  }
  if(data.hold_running){
@@ -594,7 +598,7 @@ el('motorChecked').onchange=()=>{stopHeldMotor();updateMotorTest();};
 for(const axis of [1,2]){
  el('referenceZ'+axis+'Rest').onclick=()=>{
    if(!connected||!verified||trialActive||preparingTest||!heldAxes.has(axis)||!heightFlags[axis].restSet)return;
-   if(!window.confirm('Confirma que Z'+axis+' está FÍSICAMENTE en su posición de reposo guardada y retenida. ¿Referenciar aquí?'))return;
+   if(!window.confirm('¿La aguja Z'+axis+' está ahora en el REPOSO que marcaste?'))return;
    void send('REFERENCE_Z_REST',{axis,confirm:1});
  };
  for(const [kind,name] of [[1,'Rest'],[2,'Dispense']]){
@@ -733,20 +737,16 @@ if('serial' in navigator){
 }else{
  el('coldResult').textContent='Web Serial no disponible en este navegador';
 }
-const descriptions={
-home:['CONTROL Z','Selecciona una sola aguja. Los motores están energizados únicamente durante el movimiento.'],
-tip:['CALIBRACIÓN DE PUNTA','Preparación: validar cableado y estado óptico en ambos sentidos; después referenciar Z1/Z2 por separado. Calibración física BLOQUEADA.'],
-table:['ALTURA DE MESA','Preparación: validar UART y StallGuard4 a la velocidad de aproximación, con tope independiente. Detección de contacto BLOQUEADA.'],
-test:['PRUEBAS DE SEÑALES GPIO','Selecciona Z1 o Z2 en INICIO y mantén un botón de movimiento. EN solo se habilita durante una pulsación mantenida.'],
-diag:['DIAGNÓSTICO','Utiliza PING, INFO y Estado para comprobar la comunicación USB con el ESP32.'],
-settings:['AJUSTES DE ALTURAS','Plan: guardar reposo y dispensación de Z1/Z2 en NVS tras homing y calibración verificados. Las posiciones quedan pendientes de referencia.']
-};
+const descriptions={home:'CONTROL Z',calibration:'CALIBRAR ALTURAS',diag:'DIAGNÓSTICO'};
 function page(name){
-const x=descriptions[name]||descriptions.home;
-el('homePage').style.display=name==='home'?'block':'none';
-el('detailPage').style.display=name==='home'?'none':'block';
-el('detailTitle').textContent=x[0];el('detailText').textContent=x[1];
-el('detailChannel').textContent=selected?'Z'+selected:'Ninguno';
-document.querySelectorAll('button.nav').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+ if(!Object.hasOwn(descriptions,name))name='home';
+ if(trialActive||preparingTest||pressHeld)return;
+ el('homePage').style.display=name==='home'?'block':'none';
+ el('calibrationPage').hidden=name!=='calibration';
+ el('diagnosticPage').hidden=name!=='diag';
+ el('detailPage').style.display='none';
+ document.querySelectorAll('nav button.nav').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+ const pane=document.querySelector('.workspace');
+ if(pane)pane.scrollTop=0;
 }
-document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
+document.querySelectorAll('nav button.nav').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
