@@ -186,7 +186,9 @@ uint32_t armedAt=0;
 constexpr uint16_t TRIAL_PULSES=96, TRIAL_RMS_CAP_MA=150;
 void abortTrial(){
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
- disableDrivers();trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
+ disableDrivers();
+ digitalWrite(Z1_DIR,LOW);digitalWrite(Z2_DIR,LOW);
+ trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
 }
 void serviceTrial(){
  if(!trial.active)return;
@@ -225,7 +227,7 @@ void replyColdCheck(unsigned long id){
  const bool st1=digitalRead(Z1_STEP)==LOW,st2=digitalRead(Z2_STEP)==LOW;
  const bool dir1=digitalRead(Z1_DIR)==LOW,dir2=digitalRead(Z2_DIR)==LOW;
  const bool safe=en1&&en2&&st1&&st2&&dir1&&dir2&&!jog.active&&!stepClockReady;
- Serial.printf(R"json({"id":%lu,"status":"OK","cold_check":{"mode":"USB_ONLY","cold_lock":true,"gpio_local_safe":%s,"z1":{"en_gpio":6,"en_high":%s,"step_gpio":4,"step_low":%s,"dir_gpio":5,"dir_low":%s},"z2":{"en_gpio":16,"en_high":%s,"step_gpio":7,"step_low":%s,"dir_gpio":15,"dir_low":%s},"uart_tested":false,"wiring_verified":false,"vm_polarity_verified":false,"coils_verified":false}})json" "\n",
+ Serial.printf(R"json({"id":%lu,"status":"OK","cold_check":{"mode":"SINGLE_PULSE_TEST","cold_lock":true,"gpio_local_safe":%s,"z1":{"en_gpio":6,"en_high":%s,"step_gpio":4,"step_low":%s,"dir_gpio":5,"dir_low":%s},"z2":{"en_gpio":16,"en_high":%s,"step_gpio":7,"step_low":%s,"dir_gpio":15,"dir_low":%s},"uart_tested":false,"wiring_verified":false,"vm_polarity_verified":false,"coils_verified":false}})json" "\n",
     id,safe?"true":"false",en1?"true":"false",st1?"true":"false",dir1?"true":"false",
     en2?"true":"false",st2?"true":"false",dir2?"true":"false");
 }
@@ -293,7 +295,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"GET_INFO")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.0-single-pulse\",\"mode\":\"SINGLE_PULSE_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"SINGLE_PULSE_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"SINGLE_PULSE_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
    unsigned long requested=0;
