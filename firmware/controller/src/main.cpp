@@ -199,7 +199,7 @@ struct Trial {bool active=false,high=false;uint8_t axis=0;uint32_t count=0;unsig
 uint8_t armedAxis=0;
 uint16_t armedMa=0;
 uint32_t armedAt=0;
-constexpr uint16_t HOLD_RMS_MIN_MA=100,HOLD_RMS_MAX_MA=150;
+constexpr uint16_t HOLD_RMS_MIN_MA=100,HOLD_RMS_MAX_MA=800;
 constexpr uint16_t HOLD_SPEED_MIN_SPS=80,HOLD_SPEED_MAX_SPS=1600,HOLD_START_SPS=110;
 constexpr float HOLD_ACCEL_SPS2=900.0f;
 uint16_t holdTargetSps=HOLD_START_SPS;
@@ -320,14 +320,16 @@ void dispatch(const char* data) {
    d.microsteps(16);
    d.en_spreadCycle(false);
    d.pwm_autoscale(true);
-   // Conservative motor current with lower bound so low values quantize correctly.
-   uint16_t target=(uint16_t)(rated/3U);
+   // Use 90% of the motor's declared per-phase rated current (mA RMS).
+   // Never run a TMC2209 unregulated: hard ceiling is a conservative 800 mA RMS.
+   uint16_t target=(uint16_t)((rated*9UL)/10UL);
    if(target<HOLD_RMS_MIN_MA)target=HOLD_RMS_MIN_MA;
    if(target>HOLD_RMS_MAX_MA)target=HOLD_RMS_MAX_MA;
    d.rms_current(target);
    const uint8_t after=d.IFCNT();
    if(!probeStall((uint8_t)axis)||after==before||!d.pdn_disable()||d.I_scale_analog()||
-      !d.mstep_reg_select()||d.toff()!=3||d.microsteps()!=16||d.rms_current()>rated){
+      !d.mstep_reg_select()||d.toff()!=3||d.microsteps()!=16||
+      d.rms_current()>rated||d.rms_current()>HOLD_RMS_MAX_MA){
      abortTrial();replyError(id,"UART_CURRENT_READBACK_FAILED");return;
    }
    armedAxis=(uint8_t)axis;armedMa=target;armedAt=millis();
@@ -359,7 +361,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.5-internal-rgb\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.6-rated-current\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
