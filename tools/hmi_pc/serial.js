@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false},preparingTest=false,pendingPulse=null,pressHeld=false;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false},preparingTest=false,pendingPulse=null,pressHeld=false,heldControlId=null;
 const el=id=>document.getElementById(id);
 const diagSamples={1:[],2:[]};
 const diagInfo={1:null,2:null};
@@ -136,8 +136,11 @@ function updateMotorTest(){
  for(const axis of [1,2]){
    el('z'+axis+'Comms').textContent=testReadyUart[axis]?'UART OK':'UART SIN RESPUESTA';
    el('z'+axis+'Comms').style.color=testReadyUart[axis]?'#8bdfb4':'#f1b36e';
-   for(const dir of ['Up','Down'])
-     el('motorZ'+axis+dir).disabled=!ready||!approved||!testReadyUart[axis];
+   for(const dir of ['Up','Down']){
+     const id='motorZ'+axis+dir;
+     // Keep held button enabled: disabling it may lose pointer capture.
+     el(id).disabled=(!ready||!approved||!testReadyUart[axis])&&!(pressHeld&&heldControlId===id);
+   }
  }
  el('motorStop').disabled=!connected;
 }
@@ -148,7 +151,7 @@ function stopTrialHeartbeat(){
 }
 function stopHeldMotor(){
  const wasMoving=preparingTest||trialActive||pressHeld;
- pressHeld=false;stopTrialHeartbeat();
+ pressHeld=false;heldControlId=null;stopTrialHeartbeat();
  if(wasMoving&&connected)void send('STOP_TEST');
 }
 function startMotorHold(axis,up,e){
@@ -156,8 +159,8 @@ function startMotorHold(axis,up,e){
  const ratedText=el('motorRated').value.trim(),rated=Number(ratedText);
  if(!connected||!pingOK||!verified||pressHeld||preparingTest||trialActive||!testReadyUart[axis]||
     !el('motorChecked').checked||ratedText===''||!Number.isInteger(rated)||rated<150||rated>2000)return;
- pressHeld=true;
- const btn=el('motorZ'+axis+(up?'Up':'Down'));
+ pressHeld=true;heldControlId='motorZ'+axis+(up?'Up':'Down');
+ const btn=el(heldControlId);
  btn.setPointerCapture?.(e.pointerId);
  preparingTest=true;pendingPulse={axis,up};armedTestAxis=0;
  el('motorTestState').textContent='Z'+axis+' · verificando UART y corriente antes de mover…';
@@ -263,7 +266,7 @@ function response(data){
    el('motorTestState').textContent='Z'+data.axis+' · MOVIENDO mientras mantengas pulsado';
  }
  if(data.status==='DONE'&&data.reason==='HOLD_TIMEOUT_OR_LINK_LOST'){
-   pressHeld=false;stopTrialHeartbeat();
+   pressHeld=false;heldControlId=null;stopTrialHeartbeat();
    el('motorTestState').textContent='Parada por seguridad (10 s o comunicación) · suelta y vuelve a pulsar';
  }
 
@@ -307,7 +310,7 @@ function response(data){
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){
    if(trialActive||preparingTest)void send('STOP_TEST');
-   pressHeld=false;stopTrialHeartbeat();
+   pressHeld=false;heldControlId=null;stopTrialHeartbeat();
    el('motorTestState').textContent='Error: '+data.code+' · prueba no autorizada';
    log('ERROR: '+data.code);
    if(data.code==='UART_NOT_CONNECTED'){
@@ -344,7 +347,7 @@ async function connect(authorizedPort=null){
   port=authorizedPort||await navigator.serial.requestPort();
   await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;pressHeld=false;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
+  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;pressHeld=false;heldControlId=null;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
   el('coldUsb').textContent='COM ABIERTO · ESPERANDO PONG';
   el('coldFirmware').textContent='PENDIENTE';
   el('coldGpio').textContent='PENDIENTE';
@@ -362,7 +365,7 @@ async function connect(authorizedPort=null){
 async function disconnect(){
  if(closing)return;
  if(coldPollTimer){clearInterval(coldPollTimer);coldPollTimer=null;}
- pressHeld=false;stopTrialHeartbeat();armedTestAxis=0;testReadyUart={1:false,2:false};
+ pressHeld=false;heldControlId=null;stopTrialHeartbeat();armedTestAxis=0;testReadyUart={1:false,2:false};
  endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;autoSelected=false;
  el('coldUsb').textContent='DESCONECTADO';el('coldUsb').style.color='#ffaaaa';
  el('coldGpio').textContent='SIN LECTURA ACTUAL';
