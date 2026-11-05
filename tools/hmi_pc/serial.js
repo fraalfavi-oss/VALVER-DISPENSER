@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false},preparingTest=false,pendingPulse=null;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false},preparingTest=false,pendingPulse=null,pressHeld=false;
 const el=id=>document.getElementById(id);
 const diagSamples={1:[],2:[]};
 const diagInfo={1:null,2:null};
@@ -136,7 +136,8 @@ function updateMotorTest(){
  for(const axis of [1,2]){
    el('z'+axis+'Comms').textContent=testReadyUart[axis]?'UART OK':'UART SIN RESPUESTA';
    el('z'+axis+'Comms').style.color=testReadyUart[axis]?'#8bdfb4':'#f1b36e';
-   for(const dir of ['Up','Down'])el('motorZ'+axis+dir).disabled=!ready||!approved||!testReadyUart[axis];
+   for(const dir of ['Up','Down'])
+     el('motorZ'+axis+dir).disabled=!ready||!approved||!testReadyUart[axis];
  }
  el('motorStop').disabled=!connected;
 }
@@ -145,24 +146,34 @@ function stopTrialHeartbeat(){
  trialActive=false;preparingTest=false;pendingPulse=null;armedTestAxis=0;
  updateMotorTest();
 }
-function startMotorPulse(axis,up){
+function stopHeldMotor(){
+ const wasMoving=preparingTest||trialActive||pressHeld;
+ pressHeld=false;stopTrialHeartbeat();
+ if(wasMoving&&connected)void send('STOP_TEST');
+}
+function startMotorHold(axis,up,e){
+ if(e.pointerType==='mouse'&&e.button!==0)return;
  const ratedText=el('motorRated').value.trim(),rated=Number(ratedText);
- if(!connected||!pingOK||!verified||preparingTest||trialActive||!testReadyUart[axis]||
+ if(!connected||!pingOK||!verified||pressHeld||preparingTest||trialActive||!testReadyUart[axis]||
     !el('motorChecked').checked||ratedText===''||!Number.isInteger(rated)||rated<150||rated>2000)return;
+ pressHeld=true;
+ const btn=el('motorZ'+axis+(up?'Up':'Down'));
+ btn.setPointerCapture?.(e.pointerId);
  preparingTest=true;pendingPulse={axis,up};armedTestAxis=0;
- el('motorTestState').textContent='Z'+axis+' · verificando corriente y UART antes del pulso…';
+ el('motorTestState').textContent='Z'+axis+' · verificando UART y corriente antes de mover…';
  updateMotorTest();
  void send('PREPARE_TEST',{axis,rated_ma:rated,confirm:1});
 }
-function launchPreparedPulse(axis,up){
- if(!connected||!verified||!el('motorChecked').checked)return;
+function launchPreparedHold(axis,up){
+ if(!pressHeld||!connected||!verified||!el('motorChecked').checked)return;
  trialActive=true;preparingTest=false;pendingPulse=null;armedTestAxis=axis;
- el('motorTestState').textContent='Z'+axis+' · pulso breve · parada automática activa';
+ el('motorTestState').textContent='Z'+axis+' · MOVIENDO mientras mantengas pulsado';
  updateMotorTest();
- void send('TEST_PULSE',{axis,up:up?1:0});
+ void send('HOLD_START',{axis,up:up?1:0});
  if(trialBeatTimer)clearInterval(trialBeatTimer);
  trialBeatTimer=setInterval(()=>{
-   if(connected&&trialActive)void send('TEST_HEARTBEAT');
+   if(connected&&trialActive&&pressHeld&&!document.hidden)void send('HOLD_HEARTBEAT');
+   else stopHeldMotor();
  },110);
 }
 function update(){
@@ -187,7 +198,7 @@ function update(){
  el('disable').disabled=!connected||!pingOK;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
  el('stallState').textContent=selected?(stallData['z'+selected+'_enabled']?'Z'+selected+' · ACTIVA':stallData['z'+selected+'_uart']?'Z'+selected+' · UART OK, detector apagado':'Z'+selected+' · UART sin conexión'):'Selecciona Z1/Z2';
- el('armState').textContent=trialActive?'PULSO EN CURSO':'CONTINUO BLOQUEADO · PULSO LIMITADO';
+ el('armState').textContent=trialActive?'MOVIMIENTO MANTENIDO':'MOTORES DETENIDOS · CORRIENTE PROTEGIDA';
  for(const n of [1,2]){
   el('card'+n).classList.toggle('selected',selected===n);
   el('card'+n).classList.toggle('locked',selected!==n);
@@ -204,23 +215,23 @@ function response(data){
    send('GET_INFO');send('GET_STATUS');
  }
  if(data.device==='VALVER SMART DISPENSER'&&typeof data.firmware==='string'){
-   el('coldFirmware').textContent=(data.mode==='SINGLE_PULSE_TEST'?'OK · ':'NO SEGURO · ')+data.firmware;
-   el('coldFirmware').style.color=data.mode==='SINGLE_PULSE_TEST'?'#a7f0c8':'#ffaaaa';
+   el('coldFirmware').textContent=(data.mode==='HOLD_MOTOR_TEST'?'OK · ':'NO SEGURO · ')+data.firmware;
+   el('coldFirmware').style.color=data.mode==='HOLD_MOTOR_TEST'?'#a7f0c8':'#ffaaaa';
  }
- if(typeof data.mode==='string'&&data.mode!=='SINGLE_PULSE_TEST'){
+ if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.0-single-pulse';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.1-hold-safe';
  }
- if(data.state==='SINGLE_PULSE_TEST'){
+ if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
      verified=true;coldMode=true;
-     el('coldFirmware').textContent='OK · BLOQUEO SINGLE_PULSE_TEST';
+     el('coldFirmware').textContent='OK · BLOQUEO HOLD_MOTOR_TEST';
      el('coldFirmware').style.color='#a7f0c8';
      log('Bloqueo de movimiento confirmado · iniciando autodiagnóstico');
      send('GET_COLD_CHECK');send('GET_DRIVER_TEST');
      if(coldPollTimer)clearInterval(coldPollTimer);
      coldPollTimer=setInterval(()=>{
-       if(connected&&pingOK&&verified&&!closing&&!trialActive){void send('GET_COLD_CHECK');void send('GET_DRIVER_TEST');}
+       if(connected&&pingOK&&verified&&!closing&&!trialActive&&!preparingTest){void send('GET_COLD_CHECK');void send('GET_DRIVER_TEST');}
      },5000);
    }
  }
@@ -239,23 +250,21 @@ function response(data){
  }
  if(data.test_prepared){
    const pending=pendingPulse;
-   if(pending&&preparingTest&&Number(data.axis)===pending.axis&&el('motorChecked').checked&&verified){
-     launchPreparedPulse(pending.axis,pending.up);
+   if(pending&&preparingTest&&pressHeld&&Number(data.axis)===pending.axis&&el('motorChecked').checked&&verified){
+     launchPreparedHold(pending.axis,pending.up);
    }else{
      stopTrialHeartbeat();
      void send('STOP_TEST');
      el('motorTestState').textContent='Preparación cancelada · movimiento no iniciado';
    }
  }
- if(data.test_running){
+ if(data.hold_running){
    trialActive=true;
-   el('motorTestState').textContent='Z'+data.axis+' · micropasos en ejecución';
+   el('motorTestState').textContent='Z'+data.axis+' · MOVIENDO mientras mantengas pulsado';
  }
- if(data.status==='DONE'&&['PULSE_TEST_COMPLETE','TIMEOUT_OR_LINK_LOST'].includes(data.reason)){
-   stopTrialHeartbeat();
-   el('motorTestState').textContent=data.reason==='PULSE_TEST_COMPLETE'?
-     'Finalizado · '+data.pulses+' micropasos · EN deshabilitado':
-     'Parada por tiempo o pérdida de comunicación · EN deshabilitado';
+ if(data.status==='DONE'&&data.reason==='HOLD_TIMEOUT_OR_LINK_LOST'){
+   pressHeld=false;stopTrialHeartbeat();
+   el('motorTestState').textContent='Parada por seguridad (10 s o comunicación) · suelta y vuelve a pulsar';
  }
 
  if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){
@@ -298,7 +307,7 @@ function response(data){
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){
    if(trialActive||preparingTest)void send('STOP_TEST');
-   stopTrialHeartbeat();
+   pressHeld=false;stopTrialHeartbeat();
    el('motorTestState').textContent='Error: '+data.code+' · prueba no autorizada';
    log('ERROR: '+data.code);
    if(data.code==='UART_NOT_CONNECTED'){
@@ -335,7 +344,7 @@ async function connect(authorizedPort=null){
   port=authorizedPort||await navigator.serial.requestPort();
   await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
+  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;pressHeld=false;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
   el('coldUsb').textContent='COM ABIERTO · ESPERANDO PONG';
   el('coldFirmware').textContent='PENDIENTE';
   el('coldGpio').textContent='PENDIENTE';
@@ -353,7 +362,7 @@ async function connect(authorizedPort=null){
 async function disconnect(){
  if(closing)return;
  if(coldPollTimer){clearInterval(coldPollTimer);coldPollTimer=null;}
- stopTrialHeartbeat();armedTestAxis=0;testReadyUart={1:false,2:false};
+ pressHeld=false;stopTrialHeartbeat();armedTestAxis=0;testReadyUart={1:false,2:false};
  endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;autoSelected=false;
  el('coldUsb').textContent='DESCONECTADO';el('coldUsb').style.color='#ffaaaa';
  el('coldGpio').textContent='SIN LECTURA ACTUAL';
@@ -369,14 +378,14 @@ function send(cmd,fields={}){
  if(!connected||!writer)return Promise.resolve();
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
-  'GET_DRIVER_TEST','PREPARE_TEST','TEST_PULSE','TEST_HEARTBEAT']);
+  'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
  txQueue=txQueue.catch(()=>{}).then(async()=>{
   if(!connected||!writer)return;
   await writer.write(payload);
-  if(cmd!=='JOG_MOTOR_HEARTBEAT'&&cmd!=='TEST_HEARTBEAT')log('TX → '+JSON.stringify(m));
+  if(cmd!=='JOG_MOTOR_HEARTBEAT'&&cmd!=='HOLD_HEARTBEAT')log('TX → '+JSON.stringify(m));
  }).catch(e=>{log('Error de envío: '+e.message);endJog();});
  return txQueue;
 }
@@ -384,22 +393,23 @@ el('connect').onclick=()=>void connect();
 el('disconnect').onclick=disconnect;
 for(const id of ['motorRated','motorChecked']){
  const c=el(id);
- c.onchange=()=>{
-   if(preparingTest||trialActive)void send('STOP_TEST');
-   stopTrialHeartbeat();
-   updateMotorTest();
- };
+ c.onchange=()=>{stopHeldMotor();updateMotorTest();};
  if(id==='motorRated')c.oninput=c.onchange;
 }
-el('motorZ1Up').onclick=()=>startMotorPulse(1,true);
-el('motorZ1Down').onclick=()=>startMotorPulse(1,false);
-el('motorZ2Up').onclick=()=>startMotorPulse(2,true);
-el('motorZ2Down').onclick=()=>startMotorPulse(2,false);
+for(const [axis,up,id] of [[1,true,'motorZ1Up'],[1,false,'motorZ1Down'],[2,true,'motorZ2Up'],[2,false,'motorZ2Down']]){
+ const btn=el(id);
+ btn.addEventListener('pointerdown',e=>startMotorHold(axis,up,e));
+ btn.addEventListener('pointerup',stopHeldMotor);
+ btn.addEventListener('pointercancel',stopHeldMotor);
+ btn.addEventListener('lostpointercapture',stopHeldMotor);
+}
 el('motorStop').onclick=()=>{
- stopTrialHeartbeat();
- void send('STOP_TEST');
+ stopHeldMotor();void send('STOP_TEST');
  el('motorTestState').textContent='PARADA · ambos drivers deshabilitados';
 };
+window.addEventListener('pointerup',stopHeldMotor);
+window.addEventListener('blur',stopHeldMotor);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopHeldMotor()});
 el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
