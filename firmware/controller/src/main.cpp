@@ -196,7 +196,7 @@ void stopJog(){
 struct Trial {bool active=false,high=false,up=false,automatic=false;int32_t target=0;uint8_t axis=0;uint32_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0,lastRampMs=0;float actualSps=400.0f;} trial;
 // Relative coordinates only. Without a homing switch we must NOT persist these
 // positions between power cycles or use them for autonomous movements.
-struct ZHeights {int32_t position=0,rest=0,dispense=0;bool restSet=false,dispenseSet=false,referenced=false;};
+struct ZHeights {int32_t position=0,rest=0,dispense=0;bool restSet=false,dispenseSet=false,referenced=false,restFresh=false,dispenseFresh=false;};
 ZHeights heights[3];
 Preferences savedPrefs;
 bool flashReady=false;
@@ -253,6 +253,8 @@ void loadPersistentSettings(){
  // Deliberately NEVER restore motor position: no homing reference after restart.
  heights[1].position=0;heights[2].position=0;
  heights[1].referenced=false;heights[2].referenced=false;
+ heights[1].restFresh=false;heights[1].dispenseFresh=false;
+ heights[2].restFresh=false;heights[2].dispenseFresh=false;
 }
 bool readSignedZValue(const char* json,long &value){
  const char *p=strstr(json,"\"value\"");
@@ -268,6 +270,8 @@ void abortTrial(){
  disableDrivers();
  holdingAxis[1]=false;holdingAxis[2]=false;
  heights[1].referenced=false;heights[2].referenced=false;
+ heights[1].restFresh=false;heights[1].dispenseFresh=false;
+ heights[2].restFresh=false;heights[2].dispenseFresh=false;
  digitalWrite(Z1_DIR,LOW);digitalWrite(Z2_DIR,LOW);
  trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
 }
@@ -328,12 +332,14 @@ void serviceTrial(){
  if((uint32_t)(ms-trial.lastRampMs)>=20){
    const uint32_t elapsed=ms-trial.lastRampMs;
    trial.lastRampMs=ms;
-   if(trial.actualSps<(float)holdTargetSps){
+   const float targetSps=(float)(trial.automatic?
+     (holdTargetSps<AUTO_MAX_SPEED_SPS?holdTargetSps:AUTO_MAX_SPEED_SPS):holdTargetSps);
+   if(trial.actualSps<targetSps){
      trial.actualSps+=HOLD_ACCEL_SPS2*((float)elapsed/1000.0f);
-     if(trial.actualSps>holdTargetSps)trial.actualSps=holdTargetSps;
-   }else if(trial.actualSps>(float)holdTargetSps){
+     if(trial.actualSps>targetSps)trial.actualSps=targetSps;
+   }else if(trial.actualSps>targetSps){
      trial.actualSps-=HOLD_ACCEL_SPS2*((float)elapsed/1000.0f);
-     if(trial.actualSps<holdTargetSps)trial.actualSps=holdTargetSps;
+     if(trial.actualSps<targetSps)trial.actualSps=targetSps;
    }
  }
  const uint32_t stepPeriodUs=1000000UL/(uint32_t)trial.actualSps;
@@ -445,8 +451,11 @@ void dispatch(const char* data) {
    if(!readUIntField(data,"axis",axis)||!readUIntField(data,"kind",kind)||
       axis<1||axis>2||kind<1||kind>2){replyError(id,"INVALID_HEIGHT_SELECTION");return;}
    ZHeights &h=heights[axis];
-   if(kind==1){h.rest=h.position;h.restSet=true;}
-   else {h.dispense=h.position;h.dispenseSet=true;}
+   if(!holdingAxis[axis]){replyError(id,"HOLD_MOTOR_WHILE_SAVING");return;}
+   if(kind==1){h.rest=h.position;h.restSet=true;h.restFresh=true;}
+   else {h.dispense=h.position;h.dispenseSet=true;h.dispenseFresh=true;}
+   // Both heights captured in this powered session share a known relative origin.
+   if(h.restFresh&&h.dispenseFresh)h.referenced=true;
    if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
    Serial.printf(R"json({"id":%lu,"status":"OK","height_saved":true,"axis":%lu,"kind":%lu,"position_steps":%ld})json" "\n",
      id,axis,kind,(long)h.position);
@@ -456,6 +465,7 @@ void dispatch(const char* data) {
    unsigned long axis=0;
    if(!readUIntField(data,"axis",axis)||axis<1||axis>2){replyError(id,"INVALID_HEIGHT_SELECTION");return;}
    heights[axis].restSet=false;heights[axis].dispenseSet=false;
+   heights[axis].referenced=false;heights[axis].restFresh=false;heights[axis].dispenseFresh=false;
    if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
    Serial.printf(R"json({"id":%lu,"status":"OK","height_cleared":true,"axis":%lu})json" "\n",id,axis);
    replyZHeights(id);
@@ -467,6 +477,8 @@ void dispatch(const char* data) {
    for(uint8_t axis=1;axis<=2;axis++){
      if(kind==1){heights[axis].rest=(int32_t)value;heights[axis].restSet=true;}
      else {heights[axis].dispense=(int32_t)value;heights[axis].dispenseSet=true;}
+     heights[axis].referenced=false;
+     heights[axis].restFresh=false;heights[axis].dispenseFresh=false;
    }
    if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
    Serial.printf(R"json({"id":%lu,"status":"OK","shared_height_saved":true,"kind":%lu,"value":%ld})json" "\n",id,kind,value);
@@ -557,7 +569,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.1.0-z-presets\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.1.1-simple-heights\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
