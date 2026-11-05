@@ -10,6 +10,9 @@
 // Single-axis continuous jog with USB heartbeat deadman.
 // The driver CURRENT must be set for the actual motor before using this firmware.
 namespace {
+// USB-only cold commissioning. Neither motor movement nor TMC UART is permitted.
+// A reviewed firmware change is required before any powered tests.
+constexpr bool COLD_INSPECTION_ONLY=true;
 constexpr uint8_t Z1_STEP=4,Z1_DIR=5,Z1_EN=6;
 constexpr uint8_t Z2_STEP=7,Z2_DIR=15,Z2_EN=16;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS=350;
@@ -175,6 +178,26 @@ void stopJog(){
  jog.active=false;
  disableDrivers();
 }
+bool coldCommandAllowed(const char* cmd){
+ const char* const allowed[]={
+   "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
+   "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
+   "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP"
+ };
+ for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
+ return false;
+}
+// Local readback only. This does NOT validate external power, polarity or wiring.
+void replyColdCheck(unsigned long id){
+ disableDrivers();
+ const bool en1=digitalRead(Z1_EN)==HIGH,en2=digitalRead(Z2_EN)==HIGH;
+ const bool st1=digitalRead(Z1_STEP)==LOW,st2=digitalRead(Z2_STEP)==LOW;
+ const bool dir1=digitalRead(Z1_DIR)==LOW,dir2=digitalRead(Z2_DIR)==LOW;
+ const bool safe=en1&&en2&&st1&&st2&&dir1&&dir2&&!jog.active&&!stepClockReady;
+ Serial.printf(R"json({"id":%lu,"status":"OK","cold_check":{"mode":"USB_ONLY","cold_lock":true,"gpio_local_safe":%s,"z1":{"en_gpio":6,"en_high":%s,"step_gpio":4,"step_low":%s,"dir_gpio":5,"dir_low":%s},"z2":{"en_gpio":16,"en_high":%s,"step_gpio":7,"step_low":%s,"dir_gpio":15,"dir_low":%s},"uart_tested":false,"wiring_verified":false,"vm_polarity_verified":false,"coils_verified":false}})json" "\n",
+    id,safe?"true":"false",en1?"true":"false",st1?"true":"false",dir1?"true":"false",
+    en2?"true":"false",st2?"true":"false",dir2?"true":"false");
+}
 void replySelection(unsigned long id){
  Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"selected_axis\":%u,\"armed\":false,\"drivers_enabled\":%s}\n",
  id,selectedAxis,jog.active?"true":"false");
@@ -182,12 +205,15 @@ void replySelection(unsigned long id){
 void dispatch(const char* data) {
  unsigned long id=0;char cmd[54];
  if(!readId(data,id)||!readCommand(data,cmd,sizeof(cmd))){replyError(0,"INVALID_REQUEST");return;}
- if(strcmp(cmd,"PING")==0){
+ if(COLD_INSPECTION_ONLY && !coldCommandAllowed(cmd)){replyError(id,"COLD_LOCK_ACTIVE");return;}
+ if(strcmp(cmd,"GET_COLD_CHECK")==0 || strcmp(cmd,"COLD_SELF_TEST")==0){
+   replyColdCheck(id);
+ }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.7.3-matched-sg4\",\"mode\":\"HOLD_MOTOR_JOG\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.8.0-cold-inspection\",\"mode\":\"COLD_INSPECTION\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_JOG\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"COLD_INSPECTION\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
    unsigned long requested=0;
@@ -232,7 +258,7 @@ void dispatch(const char* data) {
    stall[axis].enabled=enabled!=0;
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"axis\":%lu,\"stall_enabled\":%s}\n",id,axis,stall[axis].enabled?"true":"false");
  }else if(strcmp(cmd,"GET_SENSORS")==0){
-   if(!jog.active){probeStall(1);probeStall(2);}
+   if(!COLD_INSPECTION_ONLY && !jog.active){probeStall(1);probeStall(2);}
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"optical\":{\"configured\":false},\"stallguard\":{\"model\":\"TMC2209 StallGuard4\",\"z1_uart\":%s,\"z2_uart\":%s,\"z1_enabled\":%s,\"z2_enabled\":%s,\"z1_monitoring\":%s,\"z2_monitoring\":%s,\"z1_threshold\":%u,\"z2_threshold\":%u,\"z1_result\":%u,\"z2_result\":%u,\"min_speed_sps\":%u},\"calibration_enabled\":false}\n",
    id,stall[1].uart?"true":"false",stall[2].uart?"true":"false",stall[1].enabled?"true":"false",stall[2].enabled?"true":"false",
    stall[1].monitoring?"true":"false",stall[2].monitoring?"true":"false",
@@ -326,18 +352,26 @@ void serviceJog(){
 }
 }
 void setup(){
- stallSerialZ1.begin(UART_BAUD,SERIAL_8N1,UART_Z1_RX,UART_Z1_TX);
- stallSerialZ2.begin(UART_BAUD,SERIAL_8N1,UART_Z2_RX,UART_Z2_TX);
- stallSerialZ1.setTimeout(15);
- stallSerialZ2.setTimeout(15);
+ // Set EN high (driver disabled), STEP/DIR low before touching other peripherals.
  digitalWrite(Z1_EN,HIGH);digitalWrite(Z2_EN,HIGH);
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
  digitalWrite(Z1_DIR,LOW);digitalWrite(Z2_DIR,LOW);
  pinMode(Z1_EN,OUTPUT);pinMode(Z2_EN,OUTPUT);
  pinMode(Z1_STEP,OUTPUT);pinMode(Z2_STEP,OUTPUT);
  pinMode(Z1_DIR,OUTPUT);pinMode(Z2_DIR,OUTPUT);
- digitalWrite(Z1_EN,HIGH);digitalWrite(Z2_EN,HIGH);
- stepClockReady=configureStepClock();
+ disableDrivers();
+ if(!COLD_INSPECTION_ONLY){
+   stallSerialZ1.begin(UART_BAUD,SERIAL_8N1,UART_Z1_RX,UART_Z1_TX);
+   stallSerialZ2.begin(UART_BAUD,SERIAL_8N1,UART_Z2_RX,UART_Z2_TX);
+   stallSerialZ1.setTimeout(15);
+   stallSerialZ2.setTimeout(15);
+   stepClockReady=configureStepClock();
+ }else{
+   // UART pins left as inputs: no traffic into unpowered TMC2209.
+   pinMode(UART_Z1_RX,INPUT);pinMode(UART_Z1_TX,INPUT);
+   pinMode(UART_Z2_RX,INPUT);pinMode(UART_Z2_TX,INPUT);
+   stepClockReady=false; // no PWM STEP timer configured
+ }
  disableDrivers();
  Serial.begin(valver::kDefaultBaudRate);
 }
