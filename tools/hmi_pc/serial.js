@@ -1,6 +1,15 @@
 let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false},preparingTest=false,pendingPulse=null,pressHeld=false,heldControlId=null;
 const el=id=>document.getElementById(id);
 const heightPositions={1:0,2:0};
+const heldAxes=new Set();
+let idleHoldBeatTimer=null;
+function updateHoldStatus(){
+ for(const axis of [1,2]){
+   const node=el('z'+axis+'HoldState');
+   node.textContent=heldAxes.has(axis)?'RETENIENDO ALTURA':'';
+   node.style.color=heldAxes.has(axis)?'#a3edc6':'#a0bccc';
+ }
+}
 let keypadDraft='0';
 function safeTouchHeight(v){
  const n=Number(v);
@@ -217,16 +226,29 @@ function stopTrialHeartbeat(){
  trialActive=false;preparingTest=false;pendingPulse=null;armedTestAxis=0;
  updateMotorTest();
 }
-function stopHeldMotor(){
- const wasMoving=preparingTest||trialActive||pressHeld;
+function stopHeldMotor(park=false){
+ const moving=preparingTest||trialActive||pressHeld;
+ const axis=armedTestAxis;
+ const parkAllowed=park===true&&trialActive&&axis>0;
  pressHeld=false;heldControlId=null;stopTrialHeartbeat();
- if(wasMoving&&connected)void send('STOP_TEST').then(()=>send('GET_Z_HEIGHTS'));
- if(wasMoving)el('rgbPinNote').textContent='LED apagado · motores detenidos';
+ if(moving&&connected){
+   if(parkAllowed){
+     heldAxes.add(axis);updateHoldStatus();
+     void send('HOLD_STOP').then(()=>send('GET_Z_HEIGHTS'));
+     el('motorTestState').textContent='Z'+axis+' · POSICIÓN RETENIDA · motor energizado';
+   }else{
+     heldAxes.clear();updateHoldStatus();
+     void send('STOP_TEST').then(()=>send('GET_Z_HEIGHTS'));
+     el('motorTestState').textContent='PARADA DE SEGURIDAD · drivers deshabilitados';
+   }
+ }
+ if(moving)el('rgbPinNote').textContent='LED apagado · sin movimiento';
 }
 function startMotorHold(axis,up,e){
  if(e.pointerType==='mouse'&&e.button!==0)return;
  if(!connected||!pingOK||!verified||pressHeld||preparingTest||trialActive||!testReadyUart[axis]||
     !el('motorChecked').checked)return;
+ heldAxes.delete(axis);updateHoldStatus();
  pressHeld=true;heldControlId='motorZ'+axis+(up?'Up':'Down');
  const btn=el(heldControlId);
  btn.setPointerCapture?.(e.pointerId);
@@ -302,7 +324,10 @@ function response(data){
      send('GET_COLD_CHECK');send('GET_DRIVER_TEST');send('GET_Z_HEIGHTS');
      if(coldPollTimer)clearInterval(coldPollTimer);
      coldPollTimer=setInterval(()=>{
-       if(connected&&pingOK&&verified&&!closing&&!trialActive&&!preparingTest){void send('GET_COLD_CHECK');void send('GET_DRIVER_TEST');}
+       if(connected&&pingOK&&verified&&!closing&&!trialActive&&!preparingTest){
+         if(heldAxes.size===0)void send('GET_COLD_CHECK');
+         void send('GET_DRIVER_TEST');
+       }
      },5000);
    }
  }
@@ -345,6 +370,17 @@ function response(data){
      el('motorTestState').textContent='Preparación cancelada · movimiento no iniciado';
    }
  }
+ if(data.hold_stopped===true&&Number(data.axis)>0){
+   heldAxes.add(Number(data.axis));updateHoldStatus();
+   el('motorTestState').textContent='Z'+data.axis+' · RETENIENDO ALTURA';
+ }
+ if(data.reason==='HOLD_WATCHDOG_EXPIRED'){
+   heldAxes.clear();updateHoldStatus();
+   el('motorTestState').textContent='RETENCIÓN DESACTIVADA · comunicación perdida';
+ }
+ if(data.state==='STOPPED'){
+   heldAxes.clear();updateHoldStatus();
+ }
  if(data.hold_running){
    el('rgbPinNote').textContent=Number(data.axis)===1?'Z1 activo · luz azul':'Z2 activo · luz roja';
    trialActive=true;
@@ -352,6 +388,9 @@ function response(data){
  }
  if(data.status==='DONE'&&data.reason==='HOLD_TIMEOUT_OR_LINK_LOST'){
    el('rgbPinNote').textContent='Apagado · motor detenido';
+   if(data.holding===true&&Number(data.axis)>0)heldAxes.add(Number(data.axis));
+   else heldAxes.clear();
+   updateHoldStatus();
    pressHeld=false;heldControlId=null;stopTrialHeartbeat();
    void send('GET_Z_HEIGHTS');
    el('motorTestState').textContent='Parada por seguridad (10 s o comunicación) · suelta y vuelve a pulsar';
@@ -441,7 +480,7 @@ async function connect(authorizedPort=null){
   port=authorizedPort||await navigator.serial.requestPort();
   await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;pressHeld=false;heldControlId=null;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
+  connected=true;heldAxes.clear();updateHoldStatus();pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;pressHeld=false;heldControlId=null;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
   el('coldUsb').textContent='COM ABIERTO · ESPERANDO PONG';
   el('coldFirmware').textContent='PENDIENTE';
   el('coldGpio').textContent='PENDIENTE';
@@ -449,6 +488,11 @@ async function connect(authorizedPort=null){
   el('coldDetails').textContent='—';
   el('coldLast').textContent='Esperando respuesta del firmware…';
   log('Puerto COM abierto, arranca comprobación automática');
+  if(idleHoldBeatTimer)clearInterval(idleHoldBeatTimer);
+  idleHoldBeatTimer=setInterval(()=>{
+    if(connected&&verified&&!closing&&!document.hidden&&heldAxes.size>0)
+      void send('HOLD_IDLE_HEARTBEAT');
+  },160);
   void readLoop();void send('PING');
  }catch(e){
   log('Error de conexión: '+e.message);
@@ -458,6 +502,9 @@ async function connect(authorizedPort=null){
 }
 async function disconnect(){
  if(closing)return;
+ if(idleHoldBeatTimer){clearInterval(idleHoldBeatTimer);idleHoldBeatTimer=null;}
+ if(connected&&writer){try{await send('STOP_TEST')}catch{}}
+ heldAxes.clear();updateHoldStatus();
  if(coldPollTimer){clearInterval(coldPollTimer);coldPollTimer=null;}
  pressHeld=false;heldControlId=null;stopTrialHeartbeat();armedTestAxis=0;testReadyUart={1:false,2:false};
  endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;autoSelected=false;
@@ -476,14 +523,14 @@ function send(cmd,fields={}){
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
   'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED',
-  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT']);
+  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT','HOLD_STOP','HOLD_IDLE_HEARTBEAT']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
  txQueue=txQueue.catch(()=>{}).then(async()=>{
   if(!connected||!writer)return;
   await writer.write(payload);
-  if(cmd!=='JOG_MOTOR_HEARTBEAT'&&cmd!=='HOLD_HEARTBEAT')log('TX → '+JSON.stringify(m));
+  if(cmd!=='JOG_MOTOR_HEARTBEAT'&&cmd!=='HOLD_HEARTBEAT'&&cmd!=='HOLD_IDLE_HEARTBEAT')log('TX → '+JSON.stringify(m));
  }).catch(e=>{log('Error de envío: '+e.message);endJog();});
  return txQueue;
 }
@@ -546,15 +593,16 @@ for(const axis of [1,2]){
 for(const [axis,up,id] of [[1,true,'motorZ1Up'],[1,false,'motorZ1Down'],[2,true,'motorZ2Up'],[2,false,'motorZ2Down']]){
  const btn=el(id);
  btn.addEventListener('pointerdown',e=>startMotorHold(axis,up,e));
- btn.addEventListener('pointerup',stopHeldMotor);
+ btn.addEventListener('pointerup',()=>stopHeldMotor(true));
  btn.addEventListener('pointercancel',stopHeldMotor);
  btn.addEventListener('lostpointercapture',stopHeldMotor);
 }
 el('motorStop').onclick=()=>{
- stopHeldMotor();void send('STOP_TEST');
- el('motorTestState').textContent='PARADA · ambos drivers deshabilitados';
+ stopHeldMotor(false);heldAxes.clear();updateHoldStatus();
+ void send('STOP_TEST');
+ el('motorTestState').textContent='PARADA · motores liberados, drivers deshabilitados';
 };
-window.addEventListener('pointerup',stopHeldMotor);
+window.addEventListener('pointerup',()=>stopHeldMotor(true));
 window.addEventListener('blur',stopHeldMotor);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopHeldMotor()});
 el('ping').onclick=()=>send('PING');
