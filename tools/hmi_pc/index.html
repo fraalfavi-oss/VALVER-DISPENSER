@@ -189,6 +189,72 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 #wizardComplete p{font-size:14px;line-height:1.5}
 .wizard-note{color:#9fc1d4;font-size:11px;line-height:1.45;margin:12px 3px 1px}
 .wizard-finish{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.wizard-finish button{min-height:51px;padding:7px;font-size:12px}.wizard-move button:disabled{opacity:.3}
+
+/* HARD 800x480 single-screen fit, without any page scroll bars */
+html,body{width:100%;height:100%;margin:0;overflow:hidden!important;overscroll-behavior:none}
+body{display:flex;justify-content:center;align-items:flex-start}
+main{width:800px!important;max-width:100%!important;height:480px!important;min-height:0!important;margin:0!important;border-radius:0!important;overflow:hidden!important}
+header{height:49px!important;min-height:49px;padding:5px 12px}
+header h1{font-size:24px}
+.layout{height:430px!important;min-height:0;padding:4px 6px;grid-template-columns:124px minmax(0,1fr);gap:6px}
+nav{height:422px!important;min-height:0!important;overflow:hidden;padding:5px}
+nav button.nav{min-height:45px;height:auto;margin-bottom:2px;font-size:10px}
+nav .safe{padding:6px 2px;font-size:9px}
+.workspace{height:422px!important;min-height:0;overflow:hidden!important}
+.topline{height:44px;min-height:44px;margin:0 0 3px!important;padding:0 1px 4px;flex-wrap:nowrap}
+.topline button{min-height:37px!important;padding:4px 10px!important;font-size:10px}
+#homePage{height:370px;overflow:hidden!important}
+#motorPanel{margin:0!important;padding:6px 8px!important;overflow:hidden}
+#motorPanel h3{font-size:13px;margin:0 0 5px}
+#homePage .simple-axes{gap:7px;margin:4px 0 5px}
+#homePage .axis-simple{padding:6px;gap:3px}
+#homePage .axis-simple strong{font-size:11px}
+#homePage .axis-status{font-size:9px;min-height:10px}
+#homePage .axis-buttons,#homePage .axis-goto{gap:4px}
+#homePage .axis-buttons button,#homePage .axis-goto button{min-height:37px!important;padding:5px 2px!important;font-size:10px}
+#homePage .axis-ref{font-size:9px;line-height:1.1}
+#homePage .axis-restore{font-size:9px!important;padding:4px!important;min-height:25px;background:#2e6052}
+#homePage .axis-restore[hidden]{display:none!important}
+#homePage .speed-box{padding:5px 8px!important;margin:5px 0 3px!important}
+#homePage .speed-caption{font-size:11px}
+#homePage #holdSpeed{height:17px;margin:2px 0}
+#homePage .speed-ends{font-size:9px}
+#homePage #holdSpeedInfo{display:none!important}
+#homePage .rgb-pin-row,#homePage .simple-foot{display:none!important}
+#homePage .simple-settings{margin:3px 0;font-size:10px;gap:3px}
+#homePage .simple-settings label{font-size:10px}
+#homePage .motor-row{margin:2px 0!important}
+#homePage #motorTestState{font-size:10px;margin:2px 0;line-height:1.15}
+#homePage .channels,#homePage .speed-control,#homePage .load-monitor,#homePage .stall-control,
+#homePage .actions,#homePage .toolbar,#homePage #log{display:none!important}
+#detailPage,.workspace>.toolbar,.workspace>#log,.workspace>#jogHint,.workspace>.muted{display:none!important}
+.screen-page{height:370px!important;min-height:0;overflow:hidden!important;padding:0!important}
+.setup-wizard{padding:8px 12px!important;min-height:0!important;height:367px!important;overflow:hidden!important}
+.wizard-head{margin-bottom:8px;padding-bottom:6px}
+.wizard-head strong{font-size:16px}
+.wizard-head small{font-size:10px}
+.wizard-pick>span{font-size:12px;margin-bottom:7px}
+.wizard-choice{gap:7px;margin:7px 0 11px}
+.wizard-choice button{min-height:57px;font-size:11px}
+#wizardBegin{min-height:48px}
+.wizard-step{margin:8px 0}
+.wizard-step strong{font-size:16px}
+#wizardInstruction{font-size:12px;line-height:1.3;margin:5px 0 8px}
+.wizard-move{margin:8px 0;gap:8px}
+.wizard-move button{min-height:54px}
+.wizard-actions button{min-height:47px}
+.wizard-note{font-size:10px;line-height:1.3;margin:9px 2px 0}
+#wizardComplete strong{font-size:17px}
+#wizardComplete p{font-size:12px}
+.diagnostic-view{height:368px;overflow:hidden}
+.diagnostic-view .calibration-header{margin:2px 0 6px;padding:4px}
+.diagnostic-view .cold-panel{padding:7px;margin:0}
+.diagnostic-view .cold-panel>p:first-of-type,
+.diagnostic-view .cold-panel>p:last-of-type,
+.diagnostic-view #coldDetails,.diagnostic-view #coldLast{display:none!important}
+.diagnostic-view .cold-status-grid{gap:3px;margin:5px 0}
+.diagnostic-view .cold-status-grid>div{padding:5px;font-size:10px}
+@media(max-width:800px){body{display:block}main{width:800px!important;min-width:800px!important;transform-origin:top left}}
 </style></head><body class="cold-ui"><div id="heightKeypad" class="height-keypad" role="dialog" aria-modal="true" aria-labelledby="heightKeypadTitle" hidden>
 <div class="keypad-panel">
 <div class="keypad-top"><span id="heightKeypadTitle">ALTURA COMÚN · MICROPASOS</span><button id="keypadClose" type="button" aria-label="Cerrar">×</button></div>
@@ -218,11 +284,11 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 <div class="axis-simple"><strong>Z1 · CONDUCTIVO</strong><span id="z1Comms" class="axis-status">UART pendiente</span><span id="z1HoldState" class="axis-status"></span>
 <div class="axis-buttons"><button id="motorZ1Up" disabled>▲ SUBIR</button><button id="motorZ1Down" disabled>▼ BAJAR</button></div>
 <div class="axis-goto"><button id="gotoZ1Rest" disabled>IR A REPOSO</button><button id="gotoZ1Dispense" disabled>IR A DISPENSACIÓN</button></div>
-<small id="z1RefState" class="axis-ref">Marca las alturas en CALIBRAR ALTURAS</small></div>
+<small id="z1RefState" class="axis-ref">Marca las alturas en CALIBRAR ALTURAS</small><button id="restoreZ1Rest" class="axis-restore" hidden disabled>✓ ESTOY EN REPOSO · Z1</button></div>
 <div class="axis-simple"><strong>Z2 · ESTRUCTURAL</strong><span id="z2Comms" class="axis-status">UART pendiente</span><span id="z2HoldState" class="axis-status"></span>
 <div class="axis-buttons"><button id="motorZ2Up" disabled>▲ SUBIR</button><button id="motorZ2Down" disabled>▼ BAJAR</button></div>
 <div class="axis-goto"><button id="gotoZ2Rest" disabled>IR A REPOSO</button><button id="gotoZ2Dispense" disabled>IR A DISPENSACIÓN</button></div>
-<small id="z2RefState" class="axis-ref">Marca las alturas en CALIBRAR ALTURAS</small></div>
+<small id="z2RefState" class="axis-ref">Marca las alturas en CALIBRAR ALTURAS</small><button id="restoreZ2Rest" class="axis-restore" hidden disabled>✓ ESTOY EN REPOSO · Z2</button></div>
 </div>
 <div class="speed-box"><div class="speed-caption"><label for="holdSpeed">VELOCIDAD Z1 Y Z2</label><strong><span id="holdSpeedValue">1600</span> micropasos/s</strong></div>
 <input id="holdSpeed" type="range" min="80" max="8000" step="20" value="1600" disabled>
@@ -335,4 +401,4 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-wizard-16"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-compact-interlock-17"></script></body></html>
