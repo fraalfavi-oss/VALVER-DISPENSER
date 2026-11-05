@@ -71,6 +71,28 @@ nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286
 .height-shared input{width:90px;background:#0c2234;color:#e7f6ff;border:1px solid #4a6f85;border-radius:5px;padding:6px;margin-left:5px}
 .height-shared button{background:#275e81;padding:8px;font-size:11px;border-radius:6px}
 .height-shared button:disabled{opacity:.5}
+.height-shared .touch-label{font-size:11px;font-weight:700;color:#c9eaf8}
+.height-shared input.touch-value{width:110px;min-height:46px;font-size:21px;text-align:center;font-weight:700;color:#fff;border:2px solid #5ebff0;cursor:pointer;touch-action:manipulation}
+.touch-steps{display:flex;gap:5px;flex-wrap:wrap}
+.touch-steps button{min-width:51px;min-height:44px;font-size:13px;background:#214c6b;touch-action:manipulation}
+.touch-shared-actions{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.touch-shared-actions button{flex:1 1 135px;min-height:46px;font-size:11px;background:#1f6180;touch-action:manipulation}
+.touch-shared-actions #sharedRest,.touch-shared-actions #sharedDispense{background:#176d66}
+.height-keypad[hidden]{display:none}
+.height-keypad{position:fixed;inset:0;background:rgba(1,9,17,.91);z-index:9999;display:flex;align-items:center;justify-content:center;padding:6px}
+.keypad-panel{width:min(390px,96vw);max-height:98vh;overflow-y:auto;padding:12px;background:#122e45;border:2px solid #64c8f5;border-radius:13px;box-shadow:0 12px 40px #000}
+.keypad-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:17px;font-weight:700}
+.keypad-top button{min-width:52px;min-height:44px;font-size:22px}
+#heightKeypadDisplay{display:block;background:#081e30;border:1px solid #477c9c;border-radius:8px;padding:9px 12px;font-size:25px;font-weight:700;text-align:right;color:#fff;margin:7px 0}
+.keypad-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.keypad-grid button{min-height:49px;font-size:19px;background:#28536f;touch-action:manipulation}
+.keypad-grid button[data-key="back"]{background:#63465b}
+.keypad-grid button[data-key="clear"]{background:#63465b}
+.keypad-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.keypad-actions button{min-height:47px;font-size:15px}
+#keypadApply{background:#167f68}
+#heightKeypadError{min-height:15px;color:#ffcbac;font-size:11px;margin-top:6px}
+body.keypad-open{overflow:hidden}
 @media(max-width:750px){.height-row{grid-template-columns:24px 1fr 1fr 42px}.height-row #z1DispenseValue,.height-row #z2DispenseValue{grid-column:auto}}
 .simple-settings{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0;font-size:11px}
 .simple-settings label{font-size:11px}.simple-settings input[type=number]{width:115px}
@@ -95,7 +117,19 @@ body.cold-ui #jogHint{display:none!important}
 #last{font-size:10px;color:#acd6e7} .details{display:none;padding:20px;background:#1b3047;border-radius:10px;min-height:298px}
 .details h2{font-size:20px}.details p{line-height:1.6;color:#adc5d9}
 @media(max-width:650px){main{width:800px;min-width:650px}body{overflow-x:auto}}
-</style></head><body class="cold-ui"><main>
+</style></head><body class="cold-ui"><div id="heightKeypad" class="height-keypad" role="dialog" aria-modal="true" aria-labelledby="heightKeypadTitle" hidden>
+<div class="keypad-panel">
+<div class="keypad-top"><span id="heightKeypadTitle">ALTURA COMÚN · MICROPASOS</span><button id="keypadClose" type="button" aria-label="Cerrar">×</button></div>
+<output id="heightKeypadDisplay">0</output>
+<div class="keypad-grid">
+<button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" data-key="back">⌫</button>
+<button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" data-key="clear">C</button>
+<button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" data-key="sign">±</button>
+<button type="button" data-key="0">0</button><button type="button" data-key="00">00</button><button type="button" data-key="stepdown">−100</button><button type="button" data-key="stepup">+100</button>
+</div>
+<div id="heightKeypadError" role="status"></div>
+<div class="keypad-actions"><button id="keypadCancel" type="button">Cancelar</button><button id="keypadApply" type="button">✓ Aplicar</button></div>
+</div></div><main>
 <header><h1>VALVER</h1><div class="divider"></div><small>SMART DISPENSER<br>DIAGNÓSTICO DE CONEXIONES · HMI PC</small><strong id="state">DESCONECTADO</strong></header>
 <div class="layout"><nav>
 <button class="nav active" data-page="home">INICIO</button><button class="nav" data-page="tip">PUNTA Z</button>
@@ -137,9 +171,17 @@ body.cold-ui #jogHint{display:none!important}
    <button id="clearZ2Heights" class="height-clear" disabled title="Borrar alturas Z2">×</button>
  </div>
  <div class="height-shared">
-  <label for="sharedHeightValue">Valor común <input id="sharedHeightValue" type="number" value="0" min="-2000000" max="2000000" step="1"></label>
-  <button id="sharedRest" disabled>Reposo · Z1 + Z2</button>
-  <button id="sharedDispense" disabled>Dispensación · Z1 + Z2</button>
+  <span class="touch-label">ALTURA COMÚN</span>
+  <input id="sharedHeightValue" class="touch-value" type="text" inputmode="none" readonly value="0" aria-label="Altura común; tocar para abrir teclado numérico">
+  <div class="touch-steps">
+   <button id="heightMinus100" type="button">−100</button><button id="heightMinus10" type="button">−10</button>
+   <button id="heightPlus10" type="button">+10</button><button id="heightPlus100" type="button">+100</button>
+  </div>
+  <div class="touch-shared-actions">
+   <button id="copyZ1Height" type="button" disabled>Usar altura Z1</button><button id="copyZ2Height" type="button" disabled>Usar altura Z2</button>
+   <button id="sharedRest" type="button" disabled>Guardar reposo Z1+Z2</button>
+   <button id="sharedDispense" type="button" disabled>Guardar dispensación Z1+Z2</button>
+  </div>
  </div>
  <small id="heightCalNotice">Alturas guardadas en memoria permanente del ESP32. Son micropasos relativos, NO milímetros. Tras reiniciar se conservan los valores, pero deben referenciarse al origen físico antes de usarlos para movimientos automáticos.</small>
 </section>
@@ -177,4 +219,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-persistent-9"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-touchcal-10"></script></body></html>
