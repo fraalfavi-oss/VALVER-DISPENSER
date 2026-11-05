@@ -37,38 +37,38 @@ nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286
 .cold-checks label{font-size:10px;line-height:1.4;display:flex;gap:5px;align-items:flex-start;color:#f6e5d5}
 .cold-checks input{accent-color:#f0bd72;margin:2px 2px 0 0}
 #coldCounter{display:block;font-size:10px;color:#f0c581;margin-top:9px}
+.cold-status-grid{display:grid;grid-template-columns:1fr;gap:5px;margin:10px 0}
+.cold-status-grid>div{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:7px;background:#10283b;border-radius:6px;font-size:11px}
+.cold-status-grid strong{font-size:10px;color:#f0c581;text-align:right}
+body.cold-ui nav button.nav,body.cold-ui .channels,body.cold-ui .speed-control,body.cold-ui .load-monitor,body.cold-ui .stall-control,body.cold-ui .actions,body.cold-ui .toolbar{display:none!important}
+body.cold-ui #jogHint{display:none!important}
 #last{font-size:10px;color:#acd6e7} .details{display:none;padding:20px;background:#1b3047;border-radius:10px;min-height:298px}
 .details h2{font-size:20px}.details p{line-height:1.6;color:#adc5d9}
 @media(max-width:650px){main{width:800px;min-width:650px}body{overflow-x:auto}}
-</style></head><body><main>
-<header><h1>VALVER</h1><div class="divider"></div><small>SMART DISPENSER<br>CALIBRACIÓN Z · HMI PC</small><strong id="state">DESCONECTADO</strong></header>
+</style></head><body class="cold-ui"><main>
+<header><h1>VALVER</h1><div class="divider"></div><small>SMART DISPENSER<br>DIAGNÓSTICO DE CONEXIONES · HMI PC</small><strong id="state">DESCONECTADO</strong></header>
 <div class="layout"><nav>
 <button class="nav active" data-page="home">INICIO</button><button class="nav" data-page="tip">PUNTA Z</button>
 <button class="nav" data-page="table">MESA Z</button><button class="nav" data-page="test">PRUEBA Z</button>
 <button class="nav" data-page="diag">DIAGN.</button><button class="nav" data-page="settings">AJUSTES</button>
 <div class="safe" id="powerLabel">SOLO USB<br>MOTORES BLOQUEADOS</div>
 </nav><div class="workspace">
-<div class="topline"><button id="connect">Conectar COM</button><button id="disconnect" disabled>Desconectar</button><button id="ping" disabled>PING</button><button id="info" disabled>INFO</button><button id="status" disabled>Estado</button><button id="sensors" disabled>Sensores</button><button id="readiness" disabled>Seguridad</button><span class="state-pill" id="channelState">NINGUNO</span></div>
+<div class="topline"><button id="connect">Seleccionar COM</button><button id="disconnect" disabled>Desconectar</button><button id="ping" disabled>PING</button><button id="info" disabled>INFO</button><button id="status" disabled>Estado</button><button id="sensors" disabled>Sensores</button><button id="readiness" disabled>Seguridad</button><span class="state-pill" id="channelState">NINGUNO</span></div>
 <div id="homePage">
-<section class="cold-panel" id="coldPanel" aria-label="Diagnóstico eléctrico en frío">
-<h3>INSPECCIÓN EN FRÍO · SIN 24 V · SIN BOBINAS</h3>
-<p>Solo ESP32-S3 conectado por USB. <b>Los drivers y motores no pueden activarse.</b> El software lee niveles locales del ESP32; no puede comprobar el cableado de potencia.</p>
-<div class="cold-top"><button type="button" id="coldTest" disabled>Comprobar GPIO en reposo</button><span id="coldResult">Pendiente · Firmware 0.8.0 necesario</span></div>
-<p id="coldDetails" style="font-family:Consolas,monospace;color:#b7e7ed;white-space:pre-wrap">—</p>
-<table class="cold-table"><thead><tr><th>Eje</th><th>STEP / DIR / EN</th><th>UART sin comprobar</th><th>Bobinas</th></tr></thead>
-<tbody><tr><td>Z1 conductivo</td><td>GPIO4 / 5 / 6</td><td>RX17 · TX18 (1 kΩ)</td><td>A1/A2 y B1/B2</td></tr>
-<tr><td>Z2 estructural</td><td>GPIO7 / 15 / 16</td><td>RX10 · TX9 (1 kΩ)</td><td>A1/A2 y B1/B2</td></tr></tbody></table>
-<p><b>Verificaciones manuales con todo apagado y desconectado:</b> marcar solo después de medir, nunca por el resultado del GPIO.</p>
-<div class="cold-checks" id="coldChecklist">
-<label><input type="checkbox" class="cold-manual"> Fuente aislada: tensión y polaridad DC verificadas con multímetro</label>
-<label><input type="checkbox" class="cold-manual"> VM y GND identificados en ambos TMC2209 y sin invertir</label>
-<label><input type="checkbox" class="cold-manual"> VIO a 3,3 V; GND de ESP32 y drivers común</label>
-<label><input type="checkbox" class="cold-manual"> Sin corto entre +24 V y GND con la fuente desconectada</label>
-<label><input type="checkbox" class="cold-manual"> Pares de bobinas medidos; motores aún desconectados</label>
-<label><input type="checkbox" class="cold-manual"> Corriente nominal de NEMA 11 y ajuste de drivers verificados</label>
+<section class="cold-panel" id="coldPanel" aria-label="Autodiagnóstico USB seguro">
+<h3>AUTODIAGNÓSTICO EN FRÍO · SIN 24 V</h3>
+<p>Se ejecuta automáticamente al conectar el ESP32-S3 por USB. No activa motores, STEP ni UART. Si este navegador ya tiene permiso para el puerto COM, intenta reconectarlo automáticamente.</p>
+<div class="cold-status-grid">
+ <div><span>USB / respuesta PONG</span><strong id="coldUsb">PENDIENTE</strong></div>
+ <div><span>Firmware con bloqueo</span><strong id="coldFirmware">PENDIENTE</strong></div>
+ <div><span>GPIO EN / STEP / DIR (lectura local)</span><strong id="coldGpio">PENDIENTE</strong></div>
+ <div><span>UART con los TMC2209</span><strong id="coldUart">NO COMPROBABLE SIN VM</strong></div>
+ <div><span>Polaridad +24 V, VIO, masas y bobinas</span><strong id="coldWiring">NO COMPROBABLE POR SOFTWARE</strong></div>
 </div>
-<span id="coldCounter">Comprobaciones físicas: 0/6 · no autoriza aplicar 24 V</span>
-<p style="color:#f6c9a9"><b>Atención:</b> UART y StallGuard4 quedan deliberadamente sin probar; muchos TMC2209 no responden sin VM. Las casillas no liberan los motores.</p>
+<p id="coldResult" style="font-size:12px;font-weight:bold;color:#e9bf82">Conecta el ESP32-S3 por USB; diagnóstico automático pendiente.</p>
+<p id="coldDetails" style="font-family:Consolas,monospace;color:#b7e7ed;white-space:pre-wrap">—</p>
+<p class="muted" id="coldLast">Sin lecturas aún.</p>
+<p style="color:#ffc7a7"><b>No conectes los 24 V todavía.</b> Un resultado correcto aquí no certifica el cableado externo: hace falta comprobar la fuente, polaridad, ausencia de cortos y pares de bobinas con multímetro.</p>
 </section>
 <div class="channels">
 <section id="card1" class="card locked"><h2>Z1 · Conductivo</h2><span class="muted">Aguja adhesivo conductivo</span><p class="muted">STEP GPIO4 · DIR GPIO5 · EN GPIO6</p><button id="choose1" class="choose" disabled>Seleccionar Z1</button><div class="row"><button class="test" data-cmd="JOG_MOTOR_START_Z1_UP" disabled>▲ Mantener subir</button><button class="test" data-cmd="JOG_MOTOR_START_Z1_DOWN" disabled>▼ Mantener bajar</button></div><p class="muted">Reposo: pendiente · Dispensación: pendiente</p><p class="muted">Punta / mesa: sin calibrar</p></section>
@@ -79,5 +79,5 @@ nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286
 
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
-<div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Conecta el ESP32 por USB, selecciona COM y pulsa «Comprobar GPIO en reposo». No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-cold-inspection"></script></body></html>
+<div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
+</div></div></main><script src="serial.js?v=20261105-auto-cold-2"></script></body></html>
