@@ -217,7 +217,8 @@ constexpr uint16_t HOLD_SPEED_MIN_SPS=80,HOLD_SPEED_MAX_SPS=8000,HOLD_START_SPS=
 constexpr float HOLD_ACCEL_SPS2=6000.0f;
 uint16_t holdTargetSps=1600; // Default is useful travel speed; HMI slider can select up to 8000.
 constexpr uint32_t HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
-constexpr uint32_t AUTO_MAX_DISTANCE_STEPS=4000;
+constexpr uint32_t AUTO_MAX_DISTANCE_STEPS=32000;
+constexpr uint32_t AUTO_MAX_MS=34000; // bounded movement within operator-marked positions
 constexpr uint16_t AUTO_MAX_SPEED_SPS=1200;
 constexpr uint32_t HOLD_IDLE_TIMEOUT_MS=1200;
 bool holdingAxis[3]={false,false,false};
@@ -327,14 +328,15 @@ void serviceTrial(){
  if(!trial.active)return;
  const uint32_t t=micros(),ms=millis();
  if((uint32_t)(ms-trial.heartbeat)>HOLD_HEARTBEAT_TIMEOUT_MS ||
-    (uint32_t)(t-trial.began)>HOLD_MAX_MS*1000UL){
+    (uint32_t)(t-trial.began)>(trial.automatic?AUTO_MAX_MS:HOLD_MAX_MS)*1000UL){
    const unsigned long id=trial.id;const uint32_t steps=trial.count;
    const bool linkLost=(uint32_t)(ms-trial.heartbeat)>HOLD_HEARTBEAT_TIMEOUT_MS;
+   const bool wasAutomatic=trial.automatic;
    const uint8_t axis=trial.axis;
-   if(linkLost)abortTrial();
+   if(linkLost||wasAutomatic)abortTrial(); // movement incomplete: distrust position
    else parkTrial();
    Serial.printf(R"json({"id":%lu,"status":"DONE","reason":"HOLD_TIMEOUT_OR_LINK_LOST","axis":%u,"pulses":%lu,"drivers_enabled":%s,"holding":%s})json" "\n",
-     id,axis,(unsigned long)steps,linkLost?"false":"true",linkLost?"false":"true");
+     id,axis,(unsigned long)steps,(linkLost||wasAutomatic)?"false":"true",(linkLost||wasAutomatic)?"false":"true");
    return;
  }
  if((uint32_t)(ms-trial.lastRampMs)>=20){
@@ -371,7 +373,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT","REFERENCE_Z_REST","GO_TO_Z_HEIGHT"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT","REFERENCE_Z_REST","GO_TO_Z_HEIGHT","BEGIN_Z_CALIBRATION"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -398,6 +400,18 @@ void dispatch(const char* data) {
  if(!readId(data,id)||!readCommand(data,cmd,sizeof(cmd))){replyError(0,"INVALID_REQUEST");return;}
  if(!coldCommandAllowed(cmd)){replyError(id,"TEST_MODE_LEGACY_COMMAND_LOCKED");return;}
  if(strcmp(cmd,"GET_Z_HEIGHTS")==0){
+   replyZHeights(id);
+ }else if(strcmp(cmd,"BEGIN_Z_CALIBRATION")==0){
+   if(trial.active){replyError(id,"STOP_MOVEMENT_FIRST");return;}
+   unsigned long axis=0;
+   if(!readUIntField(data,"axis",axis)||axis<1||axis>2){
+     replyError(id,"INVALID_AXIS");return;
+   }
+   // Reset only the calibration state. Previously saved flash heights remain
+   // available, but automatic travel stays disabled until BOTH new marks.
+   heights[axis].restFresh=false;heights[axis].dispenseFresh=false;
+   heights[axis].referenced=false;
+   Serial.printf(R"json({"id":%lu,"status":"OK","calibration_begun":true,"axis":%lu})json" "\n",id,axis);
    replyZHeights(id);
  }else if(strcmp(cmd,"REFERENCE_Z_REST")==0){
    if(trial.active){replyError(id,"STOP_BEFORE_REFERENCING");return;}
@@ -432,7 +446,7 @@ void dispatch(const char* data) {
      return;
    }
    if(distance>(int64_t)AUTO_MAX_DISTANCE_STEPS||distance<-(int64_t)AUTO_MAX_DISTANCE_STEPS){
-     replyError(id,"AUTO_DISTANCE_EXCEEDS_4000_MICROSTEPS");return;
+     replyError(id,"AUTO_DISTANCE_EXCEEDS_32000_MICROSTEPS");return;
    }
    TMC2209Stepper &d=stallDriver((uint8_t)axis);
    if(!probeStall((uint8_t)axis)||d.drv_err()||d.toff()==0||
@@ -577,7 +591,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.1.1-simple-heights\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.2.0-height-wizard\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
