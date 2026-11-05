@@ -218,8 +218,7 @@ constexpr float HOLD_ACCEL_SPS2=6000.0f;
 uint16_t holdTargetSps=1600; // Default is useful travel speed; HMI slider can select up to 8000.
 constexpr uint32_t HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
 constexpr uint32_t AUTO_MAX_DISTANCE_STEPS=32000;
-constexpr uint32_t AUTO_MAX_MS=34000; // bounded movement within operator-marked positions
-constexpr uint16_t AUTO_MAX_SPEED_SPS=1200;
+constexpr uint32_t AUTO_MAX_MS=60000; // safety watchdog, independent of manual speed
 constexpr uint32_t HOLD_IDLE_TIMEOUT_MS=1200;
 bool holdingAxis[3]={false,false,false};
 uint32_t holdIdleHeartbeatMs=0;
@@ -342,8 +341,7 @@ void serviceTrial(){
  if((uint32_t)(ms-trial.lastRampMs)>=20){
    const uint32_t elapsed=ms-trial.lastRampMs;
    trial.lastRampMs=ms;
-   const float targetSps=(float)(trial.automatic?
-     (holdTargetSps<AUTO_MAX_SPEED_SPS?holdTargetSps:AUTO_MAX_SPEED_SPS):holdTargetSps);
+   const float targetSps=(float)holdTargetSps; // same speed as manual calibration
    if(trial.actualSps<targetSps){
      trial.actualSps+=HOLD_ACCEL_SPS2*((float)elapsed/1000.0f);
      if(trial.actualSps>targetSps)trial.actualSps=targetSps;
@@ -373,7 +371,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT","REFERENCE_Z_REST","GO_TO_Z_HEIGHT","BEGIN_Z_CALIBRATION"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT","REFERENCE_Z_REST","GO_TO_Z_HEIGHT","BEGIN_Z_CALIBRATION","COPY_Z1_HEIGHTS_TO_Z2"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -413,6 +411,21 @@ void dispatch(const char* data) {
    heights[axis].referenced=false;
    Serial.printf(R"json({"id":%lu,"status":"OK","calibration_begun":true,"axis":%lu})json" "\n",id,axis);
    replyZHeights(id);
+ }else if(strcmp(cmd,"COPY_Z1_HEIGHTS_TO_Z2")==0){
+   if(trial.active){replyError(id,"STOP_MOVEMENT_FIRST");return;}
+   if(!flashReady){replyError(id,"FLASH_SAVE_FAILED");return;}
+   ZHeights &source=heights[1], &dest=heights[2];
+   if(!source.restSet||!source.dispenseSet||!source.restFresh||!source.dispenseFresh||
+      !source.referenced||!holdingAxis[1]){
+     replyError(id,"Z1_NEEDS_COMPLETE_CURRENT_SESSION_CALIBRATION");return;
+   }
+   // Copy numerically; NEVER claim Z2 physical origin is known.
+   dest.rest=source.rest;dest.dispense=source.dispense;
+   dest.restSet=true;dest.dispenseSet=true;
+   dest.referenced=false;dest.restFresh=false;dest.dispenseFresh=false;
+   if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
+   Serial.printf(R"json({"id":%lu,"status":"OK","heights_copied":true,"from_axis":1,"to_axis":2,"z2_needs_rest_confirmation":true})json" "\n",id);
+   replyZHeights(id);
  }else if(strcmp(cmd,"REFERENCE_Z_REST")==0){
    if(trial.active){replyError(id,"STOP_BEFORE_REFERENCING");return;}
    unsigned long axis=0,confirm=0;
@@ -435,6 +448,17 @@ void dispatch(const char* data) {
    ZHeights &h=heights[axis];
    if(!h.referenced){replyError(id,"Z_ORIGIN_NOT_REFERENCED");return;}
    if(!holdingAxis[axis]){replyError(id,"Z_NOT_HOLDING_POSITION");return;}
+   if(kind==2){
+     const uint8_t other=axis==1?2:1;
+     const ZHeights &hOther=heights[other];
+     // HARD interlock: never dispense while other Z is outside REST.
+     if(!hOther.referenced||!hOther.restSet||!holdingAxis[other]){
+       replyError(id,"OTHER_Z_NOT_READY_FOR_REST");return;
+     }
+     if(hOther.position!=hOther.rest){
+       replyError(id,"OTHER_Z_MUST_BE_AT_REST");return;
+     }
+   }
    if((kind==1&&!h.restSet)||(kind==2&&!h.dispenseSet)){
      replyError(id,"TARGET_HEIGHT_NOT_SAVED");return;
    }
@@ -457,7 +481,12 @@ void dispatch(const char* data) {
    digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
    digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?LOW:HIGH);
    delayMicroseconds(30);
-   const uint16_t targetSpeed=holdTargetSps<AUTO_MAX_SPEED_SPS?holdTargetSps:AUTO_MAX_SPEED_SPS;
+   const uint16_t targetSpeed=holdTargetSps;
+   // Reject distances that cannot safely complete at selected speed.
+   if((uint64_t)(distance>0?distance:-distance)*1000ULL>
+      (uint64_t)targetSpeed*(AUTO_MAX_MS-3000UL)){
+     replyError(id,"AUTO_DISTANCE_TOO_LONG_AT_SELECTED_SPEED");return;
+   }
    holdingAxis[axis]=false;
    trial.active=true;trial.automatic=true;trial.high=false;trial.up=up;
    trial.axis=(uint8_t)axis;trial.target=target;trial.count=0;trial.id=id;
@@ -591,7 +620,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.2.0-height-wizard\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.3.0-interlocked-z\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
