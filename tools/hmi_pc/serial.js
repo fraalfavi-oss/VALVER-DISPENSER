@@ -6,10 +6,13 @@ let autoActive=false;
 // Two-step touchscreen calibration for each selected Z axis.
 // Sequence: manually reach DISPENSATION -> OK, then REST -> OK.
 let wizardMode='z1', wizardAxes=[1], wizardIndex=0;
+let dispenseSequence=null;
 let wizardWorking=false,wizardSaving=false,wizardBeginPending=0;
 function wizardCurrentStep(){
- if(!wizardWorking||wizardIndex>=wizardAxes.length*2)return null;
- return {axis:wizardAxes[Math.floor(wizardIndex/2)],kind:(wizardIndex%2===0?2:1)};
+ if(!wizardWorking)return null;
+ if(wizardMode==='both'&&wizardIndex===2)return {axis:2,kind:3}; // physical REST confirmation
+ if(wizardIndex>=2)return null;
+ return {axis:wizardAxes[0],kind:(wizardIndex===0?2:1)};
 }
 function wizardMessage(text){el('wizardNote').textContent=text;}
 function wizardSetMode(mode){
@@ -34,7 +37,7 @@ function wizardShowStep(){
  if(!step){
   wizardWorking=false;wizardSaving=false;wizardBeginPending=0;
   el('wizardPick').hidden=true;el('wizardWork').hidden=true;el('wizardComplete').hidden=false;
-  el('wizardDoneText').textContent='Posiciones de '+wizardAxes.map(a=>'Z'+a).join(' y ')+' guardadas en el ESP32. Abre CONTROL Z para usar IR A DISPENSACIÓN o IR A REPOSO.';
+  el('wizardDoneText').textContent='Posiciones de '+(wizardMode==='both'?'Z1 y Z2':'Z'+wizardAxes[0])+' guardadas. IR A REPOSO e IR A DISPENSACIÓN ya usan los valores configurados.';
   wizardMessage('Configuración finalizada. Las alturas ya están guardadas.');
   void send('GET_Z_HEIGHTS');
   wizardRefreshButtons();
@@ -42,14 +45,20 @@ function wizardShowStep(){
  }
  el('wizardPick').hidden=true;el('wizardWork').hidden=false;el('wizardComplete').hidden=true;
  el('wizardTitle').textContent='Z'+step.axis+' · '+(step.kind===2?'DISPENSACIÓN':'REPOSO');
- el('wizardCount').textContent='Paso '+(wizardIndex+1)+' de '+(wizardAxes.length*2);
- el('wizardInstruction').textContent='Con SUBIR o BAJAR, lleva la aguja Z'+step.axis+' hasta '+(step.kind===2?'la altura de DISPENSACIÓN':'la altura de REPOSO')+'. Suelta el botón y pulsa OK.';
- wizardMessage('La posición se guarda al pulsar OK. No hace falta introducir números.');
+ el('wizardCount').textContent='Paso '+(wizardIndex+1)+' de '+(wizardMode==='both'?3:2);
+ if(step.kind===3){
+   el('wizardTitle').textContent='Z2 · COLOCAR EN REPOSO';
+   el('wizardInstruction').textContent='Las alturas de Z1 ya están copiadas a Z2. Coloca Z2 físicamente en REPOSO con SUBIR/BAJAR, suelta y pulsa OK para activar ambos motores.';
+   wizardMessage('Solo hay que posicionar Z2 una vez; no necesitas configurar dos alturas más.');
+ }else{
+   el('wizardInstruction').textContent='Con SUBIR o BAJAR, lleva la aguja Z'+step.axis+' hasta '+(step.kind===2?'la altura de DISPENSACIÓN':'la altura de REPOSO')+'. Suelta el botón y pulsa OK.';
+   wizardMessage('La posición se guarda al pulsar OK. No hace falta introducir números.');
+ }
  wizardRefreshButtons();
 }
 function wizardBegin(){
  if(wizardWorking||wizardBeginPending||!connected||!verified||trialActive||preparingTest||pressHeld||!el('motorChecked').checked)return;
- wizardAxes=wizardMode==='both'?[1,2]:[wizardMode==='z2'?2:1];
+ wizardAxes=[wizardMode==='z2'?2:1]; // AMBOS calibrates Z1, then copies to Z2.
  wizardIndex=0;wizardSaving=false;wizardBeginPending=wizardAxes.length;
  el('wizardComplete').hidden=true;el('wizardWork').hidden=true;
  wizardMessage('Preparando configuración de '+wizardAxes.map(a=>'Z'+a).join(' y ')+'…');
@@ -64,9 +73,10 @@ function wizardConfirmPosition(){
   return;
  }
  wizardSaving=true;
- wizardMessage('Guardando '+(step.kind===2?'DISPENSACIÓN':'REPOSO')+' de Z'+step.axis+'…');
+ wizardMessage(step.kind===3?'Confirmando el reposo físico de Z2…':'Guardando '+(step.kind===2?'DISPENSACIÓN':'REPOSO')+' de Z'+step.axis+'…');
  wizardRefreshButtons();
- void send('SAVE_Z_HEIGHT',{axis:step.axis,kind:step.kind});
+ if(step.kind===3)void send('REFERENCE_Z_REST',{axis:2,confirm:1});
+ else void send('SAVE_Z_HEIGHT',{axis:step.axis,kind:step.kind});
 }
 function wizardCancel(){
  if(pressHeld||trialActive||preparingTest)stopHeldMotor(false);
@@ -422,7 +432,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.2.0-height-wizard';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.3.0-interlocked-z';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -450,6 +460,9 @@ function response(data){
    if(data.z_heights.flash_ready===false)
      el('heightCalNotice').textContent='ERROR: memoria permanente no disponible; no se pueden guardar alturas ni velocidad.';
  }
+ if(data.heights_copied===true && wizardWorking && wizardSaving && wizardMode==='both' && wizardIndex===1){
+   wizardSaving=false;wizardIndex=2;wizardShowStep();
+ }
  if(data.calibration_begun===true && wizardBeginPending>0){
    wizardBeginPending--;
    if(wizardBeginPending===0){wizardWorking=true;wizardShowStep();}
@@ -458,8 +471,12 @@ function response(data){
  if(data.height_saved && wizardWorking && wizardSaving){
    const step=wizardCurrentStep();
    if(step&&Number(data.axis)===step.axis&&Number(data.kind)===step.kind){
-     wizardSaving=false;wizardIndex++;
-     wizardShowStep();
+     if(wizardMode==='both'&&wizardIndex===1){
+       wizardMessage('Copiando los dos valores de Z1 a Z2…');
+       void send('COPY_Z1_HEIGHTS_TO_Z2');
+     }else{
+       wizardSaving=false;wizardIndex++;wizardShowStep();
+     }
    }
  }
  if(data.height_saved){
@@ -503,6 +520,9 @@ function response(data){
  if(data.state==='STOPPED'){
    heldAxes.clear();updateHoldStatus();
    void send('GET_Z_HEIGHTS');
+ }
+ if(data.reference_set===true && wizardWorking && wizardSaving && wizardMode==='both' && wizardIndex===2 && Number(data.axis)===2){
+   wizardSaving=false;wizardIndex=3;wizardShowStep();
  }
  if(data.reference_set===true){
    el('heightCalNotice').textContent='Z'+data.axis+' · LISTO. Pulsa IR A REPOSO o IR A DISPENSACIÓN.';
@@ -668,7 +688,7 @@ function send(cmd,fields={}){
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
   'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED',
-  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT','HOLD_STOP','HOLD_IDLE_HEARTBEAT','REFERENCE_Z_REST','GO_TO_Z_HEIGHT','BEGIN_Z_CALIBRATION']);
+  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT','HOLD_STOP','HOLD_IDLE_HEARTBEAT','REFERENCE_Z_REST','GO_TO_Z_HEIGHT','BEGIN_Z_CALIBRATION','COPY_Z1_HEIGHTS_TO_Z2']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
