@@ -255,6 +255,9 @@ nav .safe{padding:6px 2px;font-size:9px}
 .diagnostic-view .cold-status-grid{gap:3px;margin:5px 0}
 .diagnostic-view .cold-status-grid>div{padding:5px;font-size:10px}
 @media(max-width:800px){body{display:block}main{width:800px!important;min-width:800px!important;transform-origin:top left}}
+
+.sidebar-checked{font-size:10px;display:flex;align-items:flex-start;gap:4px;color:#bdd8e7;padding:6px 3px;line-height:1.25;cursor:pointer}
+.sidebar-checked input{accent-color:#55c6a1;flex-shrink:0;margin:0}
 </style></head><body class="cold-ui"><div id="heightKeypad" class="height-keypad" role="dialog" aria-modal="true" aria-labelledby="heightKeypadTitle" hidden>
 <div class="keypad-panel">
 <div class="keypad-top"><span id="heightKeypadTitle">ALTURA COMÚN · MICROPASOS</span><button id="keypadClose" type="button" aria-label="Cerrar">×</button></div>
@@ -273,6 +276,7 @@ nav .safe{padding:6px 2px;font-size:9px}
 <button class="nav active" data-page="home">CONTROL Z</button>
 <button class="nav" data-page="calibration">CALIBRAR ALTURAS</button>
 <button class="nav" data-page="diag">DIAGNÓSTICO</button>
+<label class="sidebar-checked"><input id="motorChecked" type="checkbox"> Conexiones de motores verificadas</label>
 <div class="safe" id="powerLabel">PRUEBA 12 V<br>PULSOS LIMITADOS</div>
 </nav><div class="workspace">
 <div class="topline"><button id="connect">CONECTAR COM</button><button id="disconnect" disabled>DESCONECTAR</button><button id="motorStop" class="stop" type="button">■ PARADA</button>
@@ -300,9 +304,7 @@ nav .safe{padding:6px 2px;font-size:9px}
  <small id="rgbPinNote">LED integrado automático · GPIO48/GPIO38 compatibles, sin cables ni selección</small>
 </div>
 
-<div class="simple-settings">
-<label><input id="motorChecked" type="checkbox"> Conexiones revisadas: 12 V, polaridad, VIO, GND y bobinas</label>
-</div>
+
 <div class="motor-row"><span id="motorTestState">UART y corriente pendientes · motores bloqueados</span></div>
 <p class="simple-foot">Mantén pulsado para mover. Al soltar, el motor retiene su altura con corriente reducida mientras la HMI siga conectada. PARADA libera ambos motores; si se pierde la comunicación, los drivers se deshabilitan por seguridad. La corriente de marcha permanece regulada a 150 mA RMS.</p>
 </section>
@@ -401,4 +403,4 @@ nav .safe{padding:6px 2px;font-size:9px}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-compact-interlock-17"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-interlock-ready-18"></script></body></html>
