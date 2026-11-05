@@ -195,11 +195,25 @@ void stopJog(){
  disableDrivers();
 }
 
-struct Trial {bool active=false,high=false;uint8_t axis=0;uint32_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0,lastRampMs=0;float actualSps=400.0f;} trial;
+struct Trial {bool active=false,high=false,up=false;uint8_t axis=0;uint32_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0,lastRampMs=0;float actualSps=400.0f;} trial;
+// Relative coordinates only. Without a homing switch we must NOT persist these
+// positions between power cycles or use them for autonomous movements.
+struct ZHeights {int32_t position=0,rest=0,dispense=0;bool restSet=false,dispenseSet=false;};
+ZHeights heights[3];
+void replyZHeights(unsigned long id){
+ Serial.printf(R"json({"id":%lu,"status":"OK","z_heights":{"unit":"microsteps","referenced":false,"session_only":true,"z1":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld},"z2":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld}}})json" "\n",
+ id,(long)heights[1].position,heights[1].restSet?"true":"false",(long)heights[1].rest,
+ heights[1].dispenseSet?"true":"false",(long)heights[1].dispense,
+ (long)heights[2].position,heights[2].restSet?"true":"false",(long)heights[2].rest,
+ heights[2].dispenseSet?"true":"false",(long)heights[2].dispense);
+}
 uint8_t armedAxis=0;
 uint16_t armedMa=0;
 uint32_t armedAt=0;
 constexpr uint16_t HOLD_RMS_MIN_MA=100,HOLD_RMS_MAX_MA=800;
+// Safe conservative default until NEMA 11 phase-rated current is established.
+// No UI current field, but current regulation and UART readback remain mandatory.
+constexpr uint16_t MOTOR_FIXED_RMS_MA=150;
 constexpr uint16_t HOLD_SPEED_MIN_SPS=80,HOLD_SPEED_MAX_SPS=8000,HOLD_START_SPS=400;
 constexpr float HOLD_ACCEL_SPS2=6000.0f;
 uint16_t holdTargetSps=1600; // Default is useful travel speed; HMI slider can select up to 8000.
@@ -256,6 +270,8 @@ void serviceTrial(){
    digitalWrite(step,HIGH);trial.high=true;trial.edge=t;
  }else if(trial.high && (uint32_t)(t-trial.edge)>=20){
    digitalWrite(step,LOW);trial.high=false;trial.count++;
+  // One signed relative microstep per actual STEP pulse completed.
+  heights[trial.axis].position+=trial.up?1:-1;
  }
 }
 bool coldCommandAllowed(const char* cmd){
@@ -263,7 +279,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -288,7 +304,27 @@ void dispatch(const char* data) {
  unsigned long id=0;char cmd[54];
  if(!readId(data,id)||!readCommand(data,cmd,sizeof(cmd))){replyError(0,"INVALID_REQUEST");return;}
  if(!coldCommandAllowed(cmd)){replyError(id,"TEST_MODE_LEGACY_COMMAND_LOCKED");return;}
- if(strcmp(cmd,"SET_HOLD_SPEED")==0){
+ if(strcmp(cmd,"GET_Z_HEIGHTS")==0){
+   replyZHeights(id);
+ }else if(strcmp(cmd,"SAVE_Z_HEIGHT")==0){
+   if(trial.active){replyError(id,"STOP_BEFORE_CALIBRATION");return;}
+   unsigned long axis=0,kind=0;
+   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"kind",kind)||
+      axis<1||axis>2||kind<1||kind>2){replyError(id,"INVALID_HEIGHT_SELECTION");return;}
+   ZHeights &h=heights[axis];
+   if(kind==1){h.rest=h.position;h.restSet=true;}
+   else {h.dispense=h.position;h.dispenseSet=true;}
+   Serial.printf(R"json({"id":%lu,"status":"OK","height_saved":true,"axis":%lu,"kind":%lu,"position_steps":%ld})json" "\n",
+     id,axis,kind,(long)h.position);
+   replyZHeights(id);
+ }else if(strcmp(cmd,"CLEAR_Z_HEIGHTS")==0){
+   if(trial.active){replyError(id,"STOP_BEFORE_CALIBRATION");return;}
+   unsigned long axis=0;
+   if(!readUIntField(data,"axis",axis)||axis<1||axis>2){replyError(id,"INVALID_HEIGHT_SELECTION");return;}
+   heights[axis].restSet=false;heights[axis].dispenseSet=false;
+   Serial.printf(R"json({"id":%lu,"status":"OK","height_cleared":true,"axis":%lu})json" "\n",id,axis);
+   replyZHeights(id);
+ }else if(strcmp(cmd,"SET_HOLD_SPEED")==0){
    if(trial.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
    unsigned long requested=0;
    if(!readUIntField(data,"speed_sps",requested)||
@@ -306,10 +342,9 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PREPARE_TEST")==0){
    if(trial.active){replyError(id,"TEST_RUNNING");return;}
    abortTrial();
-   unsigned long axis=0,rated=0,confirm=0;
-   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"rated_ma",rated)||
-      !readUIntField(data,"confirm",confirm)||axis<1||axis>2||
-      rated<150||rated>2000||confirm!=1){replyError(id,"MOTOR_RATED_CURRENT_REQUIRED");return;}
+   unsigned long axis=0,confirm=0;
+   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"confirm",confirm)||
+      axis<1||axis>2||confirm!=1){replyError(id,"MOTOR_ENABLE_CONFIRMATION_REQUIRED");return;}
    if(!probeStall((uint8_t)axis)){replyError(id,"UART_NOT_READY_NO_MOTION");return;}
    TMC2209Stepper &d=stallDriver((uint8_t)axis);
    const uint8_t before=d.IFCNT();
@@ -320,16 +355,13 @@ void dispatch(const char* data) {
    d.microsteps(16);
    d.en_spreadCycle(false);
    d.pwm_autoscale(true);
-   // Use 90% of the motor's declared per-phase rated current (mA RMS).
-   // Never run a TMC2209 unregulated: hard ceiling is a conservative 800 mA RMS.
-   uint16_t target=(uint16_t)((rated*9UL)/10UL);
-   if(target<HOLD_RMS_MIN_MA)target=HOLD_RMS_MIN_MA;
-   if(target>HOLD_RMS_MAX_MA)target=HOLD_RMS_MAX_MA;
+   // Fixed, regulated commissioning current; MUST NOT exceed motor nameplate.
+   const uint16_t target=MOTOR_FIXED_RMS_MA;
    d.rms_current(target);
    const uint8_t after=d.IFCNT();
    if(!probeStall((uint8_t)axis)||after==before||!d.pdn_disable()||d.I_scale_analog()||
       !d.mstep_reg_select()||d.toff()!=3||d.microsteps()!=16||
-      d.rms_current()>rated||d.rms_current()>HOLD_RMS_MAX_MA){
+      d.rms_current()>HOLD_RMS_MAX_MA||d.irun()==0){
      abortTrial();replyError(id,"UART_CURRENT_READBACK_FAILED");return;
    }
    armedAxis=(uint8_t)axis;armedMa=target;armedAt=millis();
@@ -348,7 +380,7 @@ void dispatch(const char* data) {
    // Correct both axes' vertical orientation in software; do not swap motor coils.
    digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?LOW:HIGH);
    digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);delayMicroseconds(30);
-   trial.active=true;trial.high=false;trial.axis=(uint8_t)axis;trial.count=0;trial.id=id;
+   trial.active=true;trial.high=false;trial.axis=(uint8_t)axis;trial.up=(up==1);trial.count=0;trial.id=id;
    trial.began=micros();trial.actualSps=(float)(holdTargetSps<HOLD_START_SPS?holdTargetSps:HOLD_START_SPS);
    trial.edge=trial.began-(1000000UL/(uint32_t)trial.actualSps);
    trial.heartbeat=millis();trial.lastRampMs=trial.heartbeat;
@@ -361,7 +393,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.7-fast-z\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.8-height-calibration\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
