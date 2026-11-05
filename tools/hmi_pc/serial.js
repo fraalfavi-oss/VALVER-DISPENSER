@@ -275,6 +275,7 @@ function response(data){
  if(typeof data.stall_enabled==='boolean'&&data.axis)stallData['z'+data.axis+'_enabled']=data.stall_enabled;
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){
+   if(trialActive)void send('STOP_TEST');
    stopTrialHeartbeat();armedTestAxis=0;
    el('motorTestState').textContent='Error: '+data.code+' · prueba no autorizada';
    log('ERROR: '+data.code);
@@ -353,15 +354,17 @@ function send(cmd,fields={}){
  txQueue=txQueue.catch(()=>{}).then(async()=>{
   if(!connected||!writer)return;
   await writer.write(payload);
-  if(cmd!=='JOG_MOTOR_HEARTBEAT')log('TX → '+JSON.stringify(m));
+  if(cmd!=='JOG_MOTOR_HEARTBEAT'&&cmd!=='TEST_HEARTBEAT')log('TX → '+JSON.stringify(m));
  }).catch(e=>{log('Error de envío: '+e.message);endJog();});
  return txQueue;
 }
 el('connect').onclick=()=>void connect();
 el('disconnect').onclick=disconnect;
-for(const key of ['motorAxis','motorRated','motorChecked'])el(key).onchange=()=>{
- armedTestAxis=0;updateMotorTest();
-};
+for(const key of ['motorAxis','motorRated','motorChecked']){
+ const control=el(key);
+ control.onchange=()=>{armedTestAxis=0;updateMotorTest();};
+ if(key==='motorRated')control.oninput=()=>{armedTestAxis=0;updateMotorTest();};
+}
 el('motorPrepare').onclick=()=>{
  const axis=Number(el('motorAxis').value),rated=Number(el('motorRated').value);
  if(!connected||!verified||!testReadyUart[axis]||!el('motorChecked').checked||
