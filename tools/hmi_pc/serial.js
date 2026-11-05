@@ -156,6 +156,9 @@ function updateMotorTest(){
    for(const kind of ['Rest','Dispense'])el('saveZ'+axis+kind).disabled=!active;
    el('clearZ'+axis+'Heights').disabled=!active;
  }
+ const sharedReady=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld;
+ el('sharedRest').disabled=!sharedReady;
+ el('sharedDispense').disabled=!sharedReady;
 
 }
 function stopTrialHeartbeat(){
@@ -167,6 +170,7 @@ function stopHeldMotor(){
  const wasMoving=preparingTest||trialActive||pressHeld;
  pressHeld=false;heldControlId=null;stopTrialHeartbeat();
  if(wasMoving&&connected)void send('STOP_TEST').then(()=>send('GET_Z_HEIGHTS'));
+ if(wasMoving)el('rgbPinNote').textContent='LED apagado · motores detenidos';
 }
 function startMotorHold(axis,up,e){
  if(e.pointerType==='mouse'&&e.button!==0)return;
@@ -236,7 +240,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.8-height-calibration';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.9-persistent-height-rgb';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -256,10 +260,18 @@ function response(data){
    el('coldResult').textContent='FIRMWARE ANTIGUO: no continuar sin actualizar';
  }
  if(data.cold_check){showColdTest(data.cold_check);}
- if(data.z_heights)showZHeights(data.z_heights);
+ if(data.z_heights){
+   showZHeights(data.z_heights);
+   if(data.z_heights.flash_ready===false)
+     el('heightCalNotice').textContent='ERROR: memoria permanente no disponible; no se pueden guardar alturas ni velocidad.';
+ }
  if(data.height_saved){
    el('heightCalNotice').textContent='Z'+data.axis+' · '+(data.kind===1?'Reposo':'Dispensación')+
-      ' guardada en '+data.position_steps+' micropasos relativos. Solo sesión actual.';
+      ' guardada en '+data.position_steps+' micropasos relativos · guardado en ESP32. Sin origen físico.';
+ }
+ if(data.shared_height_saved){
+   el('heightCalNotice').textContent='Valor '+data.value+' guardado para '+
+     (data.kind===1?'REPOSO':'DISPENSACIÓN')+' en Z1 y Z2 · memoria del ESP32; referencia física pendiente.';
  }
  if(data.height_cleared){
    el('heightCalNotice').textContent='Z'+data.axis+' · referencias borradas; posición relativa conservada.';
@@ -298,7 +310,7 @@ function response(data){
    const speed=Math.max(80,Math.min(8000,Math.round(Number(data.hold_speed_sps))));
    el('holdSpeed').value=String(speed);
    el('holdSpeedValue').textContent=String(speed);
-   el('holdSpeedInfo').textContent='Velocidad aplicada: '+speed+' micropasos/s · aceleración suave';
+   el('holdSpeedInfo').textContent='Velocidad '+speed+' micropasos/s · guardada en ESP32';
  }
  if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){
    el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);
@@ -413,7 +425,7 @@ function send(cmd,fields={}){
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
   'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED',
-  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS']);
+  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
@@ -435,6 +447,18 @@ el('holdSpeed').onchange=()=>{
  void send('SET_HOLD_SPEED',{speed_sps:Number(el('holdSpeed').value)});
 };
 el('motorChecked').onchange=()=>{stopHeldMotor();updateMotorTest();};
+for(const [kind,id] of [[1,'sharedRest'],[2,'sharedDispense']]){
+ el(id).onclick=()=>{
+   if(!connected||!verified||trialActive||preparingTest||pressHeld)return;
+   const txt=el('sharedHeightValue').value.trim();
+   const value=Number(txt);
+   if(!/^-?\d+$/.test(txt)||!Number.isInteger(value)||Math.abs(value)>2000000){
+     el('heightCalNotice').textContent='Introduce un entero entre -2.000.000 y +2.000.000 micropasos.';
+     return;
+   }
+   void send('SET_SHARED_HEIGHT',{kind,value});
+ };
+}
 for(const axis of [1,2]){
  for(const [kind,name] of [[1,'Rest'],[2,'Dispense']]){
    el('saveZ'+axis+name).onclick=()=>{
