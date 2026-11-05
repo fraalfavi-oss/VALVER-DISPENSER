@@ -1,6 +1,8 @@
 let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false},preparingTest=false,pendingPulse=null,pressHeld=false,heldControlId=null;
 const el=id=>document.getElementById(id);
 const heightPositions={1:0,2:0};
+const heightFlags={1:{referenced:false,restSet:false,dispenseSet:false},2:{referenced:false,restSet:false,dispenseSet:false}};
+let autoActive=false;
 const heldAxes=new Set();
 let idleHoldBeatTimer=null;
 function updateHoldStatus(){
@@ -191,6 +193,10 @@ function showZHeights(d){
  for(const axis of [1,2]){
    const h=d['z'+axis]||{};
    heightPositions[axis]=Number(h.position??0);
+   heightFlags[axis]={referenced:h.referenced===true,restSet:h.rest_set===true,dispenseSet:h.dispense_set===true};
+   const ref=el('z'+axis+'RefState');
+   ref.textContent=heightFlags[axis].referenced?'ORIGEN REFERENCIADO':'SIN ORIGEN · abrir calibración';
+   ref.classList.toggle('is-ready',heightFlags[axis].referenced);
    el('z'+axis+'Position').textContent='Pos. '+(h.position??0);
    el('z'+axis+'RestValue').textContent=h.rest_set===true?String(h.rest):'—';
    el('z'+axis+'DispenseValue').textContent=h.dispense_set===true?String(h.dispense):'—';
@@ -214,6 +220,10 @@ function updateMotorTest(){
    const active=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld&&testReadyUart[axis];
    for(const kind of ['Rest','Dispense'])el('saveZ'+axis+kind).disabled=!active;
    el('clearZ'+axis+'Heights').disabled=!active;
+   el('referenceZ'+axis+'Rest').disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].restSet);
+   for(const [kind,label] of [['restSet','Rest'],['dispenseSet','Dispense']]){
+     el('gotoZ'+axis+label).disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].referenced&&heightFlags[axis][kind]);
+   }
  }
  const sharedReady=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld;
  el('sharedRest').disabled=!sharedReady;
@@ -223,6 +233,7 @@ function updateMotorTest(){
 }
 function stopTrialHeartbeat(){
  if(trialBeatTimer){clearInterval(trialBeatTimer);trialBeatTimer=null;}
+ autoActive=false;
  trialActive=false;preparingTest=false;pendingPulse=null;armedTestAxis=0;
  updateMotorTest();
 }
@@ -244,6 +255,24 @@ function stopHeldMotor(park=false){
    }
  }
  if(moving)el('rgbPinNote').textContent='LED apagado · sin movimiento';
+}
+function startAutoHeight(axis,kind){
+ if(!connected||!verified||trialActive||preparingTest||pressHeld||!el('motorChecked').checked||
+    !heldAxes.has(axis)||!heightFlags[axis].referenced||
+    !(kind===1?heightFlags[axis].restSet:heightFlags[axis].dispenseSet))return;
+ const to=kind===1?'REPOSO':'DISPENSACIÓN';
+ if(!window.confirm('Z'+axis+' irá a '+to+' (máximo 4.000 micropasos por orden).\nSupervisa la aguja y mantén PARADA accesible. ¿Continuar?'))return;
+ autoActive=true;trialActive=true;armedTestAxis=axis;
+ heldAxes.delete(axis);updateHoldStatus();
+ el('motorTestState').textContent='Z'+axis+' · moviendo automáticamente a '+to+'…';
+ updateMotorTest();
+ void send('GO_TO_Z_HEIGHT',{axis,kind,confirm:1});
+ void send('HOLD_HEARTBEAT');
+ if(trialBeatTimer)clearInterval(trialBeatTimer);
+ trialBeatTimer=setInterval(()=>{
+   if(connected&&verified&&trialActive&&autoActive&&!document.hidden)void send('HOLD_HEARTBEAT');
+   else if(autoActive)stopHeldMotor(false);
+ },110);
 }
 function startMotorHold(axis,up,e){
  if(e.pointerType==='mouse'&&e.button!==0)return;
@@ -314,7 +343,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.0.0-touch-hold';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.1.0-z-presets';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -374,6 +403,7 @@ function response(data){
  if(data.hold_stopped===true&&Number(data.axis)>0){
    heldAxes.add(Number(data.axis));updateHoldStatus();
    el('motorTestState').textContent='Z'+data.axis+' · RETENIENDO ALTURA';
+   updateMotorTest();
  }
  if(data.reason==='HOLD_WATCHDOG_EXPIRED'){
    heldAxes.clear();updateHoldStatus();
@@ -381,6 +411,21 @@ function response(data){
  }
  if(data.state==='STOPPED'){
    heldAxes.clear();updateHoldStatus();
+ }
+ if(data.reference_set===true){
+   el('heightCalNotice').textContent='Z'+data.axis+' referenciado en reposo. Ya puedes tocar EN REPOSO o EN DISPENSACIÓN.';
+   void send('GET_Z_HEIGHTS');
+ }
+ if(data.auto_move_started===true){
+   el('motorTestState').textContent='Z'+data.axis+' · movimiento a altura guardada · '+data.distance+' micropasos';
+ }
+ if(data.auto_reached===true){
+   const axis=Number(data.axis);
+   if(axis===1||axis===2)heldAxes.add(axis);
+   updateHoldStatus();
+   stopTrialHeartbeat();
+   el('motorTestState').textContent='Z'+data.axis+' · ALTURA ALCANZADA · reteniendo posición';
+   void send('GET_Z_HEIGHTS');
  }
  if(data.hold_running){
    el('rgbPinNote').textContent=Number(data.axis)===1?'Z1 activo · luz azul':'Z2 activo · luz roja';
@@ -524,7 +569,7 @@ function send(cmd,fields={}){
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
   'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED',
-  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT','HOLD_STOP','HOLD_IDLE_HEARTBEAT']);
+  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT','HOLD_STOP','HOLD_IDLE_HEARTBEAT','REFERENCE_Z_REST','GO_TO_Z_HEIGHT']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
@@ -546,6 +591,16 @@ el('holdSpeed').onchange=()=>{
  void send('SET_HOLD_SPEED',{speed_sps:Number(el('holdSpeed').value)});
 };
 el('motorChecked').onchange=()=>{stopHeldMotor();updateMotorTest();};
+for(const axis of [1,2]){
+ el('referenceZ'+axis+'Rest').onclick=()=>{
+   if(!connected||!verified||trialActive||preparingTest||!heldAxes.has(axis)||!heightFlags[axis].restSet)return;
+   if(!window.confirm('Confirma que Z'+axis+' está FÍSICAMENTE en su posición de reposo guardada y retenida. ¿Referenciar aquí?'))return;
+   void send('REFERENCE_Z_REST',{axis,confirm:1});
+ };
+ for(const [kind,name] of [[1,'Rest'],[2,'Dispense']]){
+   el('gotoZ'+axis+name).onclick=()=>startAutoHeight(axis,kind);
+ }
+}
 el('sharedHeightValue').addEventListener('click',openHeightKeypad);
 el('sharedHeightValue').addEventListener('focus',()=>el('sharedHeightValue').blur());
 for(const b of document.querySelectorAll('#heightKeypad [data-key]')){
