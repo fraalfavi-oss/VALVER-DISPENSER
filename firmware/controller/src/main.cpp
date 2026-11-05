@@ -193,19 +193,18 @@ void stopJog(){
  disableDrivers();
 }
 
-struct Trial {bool active=false,high=false,up=false;uint8_t axis=0;uint32_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0,lastRampMs=0;float actualSps=400.0f;} trial;
+struct Trial {bool active=false,high=false,up=false,automatic=false;int32_t target=0;uint8_t axis=0;uint32_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0,lastRampMs=0;float actualSps=400.0f;} trial;
 // Relative coordinates only. Without a homing switch we must NOT persist these
 // positions between power cycles or use them for autonomous movements.
-struct ZHeights {int32_t position=0,rest=0,dispense=0;bool restSet=false,dispenseSet=false;};
+struct ZHeights {int32_t position=0,rest=0,dispense=0;bool restSet=false,dispenseSet=false,referenced=false;};
 ZHeights heights[3];
 Preferences savedPrefs;
 bool flashReady=false;
 void replyZHeights(unsigned long id){
- Serial.printf(R"json({"id":%lu,"status":"OK","z_heights":{"unit":"microsteps","referenced":false,"session_only":false,"stored_unreferenced":true,"flash_ready":%s,"z1":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld},"z2":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld}}})json" "\n",
- id,flashReady?"true":"false",(long)heights[1].position,heights[1].restSet?"true":"false",(long)heights[1].rest,
- heights[1].dispenseSet?"true":"false",(long)heights[1].dispense,
- (long)heights[2].position,heights[2].restSet?"true":"false",(long)heights[2].rest,
- heights[2].dispenseSet?"true":"false",(long)heights[2].dispense);
+ Serial.printf(R"json({"id":%lu,"status":"OK","z_heights":{"unit":"microsteps","referenced":false,"session_only":false,"stored_unreferenced":true,"flash_ready":%s,"z1":{"position":%ld,"referenced":%s,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld},"z2":{"position":%ld,"referenced":%s,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld}}})json" "\n",
+ id,flashReady?"true":"false",
+ (long)heights[1].position,heights[1].referenced?"true":"false",heights[1].restSet?"true":"false",(long)heights[1].rest,heights[1].dispenseSet?"true":"false",(long)heights[1].dispense,
+ (long)heights[2].position,heights[2].referenced?"true":"false",heights[2].restSet?"true":"false",(long)heights[2].rest,heights[2].dispenseSet?"true":"false",(long)heights[2].dispense);
 }
 uint8_t armedAxis=0;
 uint16_t armedMa=0;
@@ -218,6 +217,8 @@ constexpr uint16_t HOLD_SPEED_MIN_SPS=80,HOLD_SPEED_MAX_SPS=8000,HOLD_START_SPS=
 constexpr float HOLD_ACCEL_SPS2=6000.0f;
 uint16_t holdTargetSps=1600; // Default is useful travel speed; HMI slider can select up to 8000.
 constexpr uint32_t HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
+constexpr uint32_t AUTO_MAX_DISTANCE_STEPS=4000;
+constexpr uint16_t AUTO_MAX_SPEED_SPS=1200;
 constexpr uint32_t HOLD_IDLE_TIMEOUT_MS=1200;
 bool holdingAxis[3]={false,false,false};
 uint32_t holdIdleHeartbeatMs=0;
@@ -251,6 +252,7 @@ void loadPersistentSettings(){
  heights[2].restSet=(data.z2Flags&1)!=0;heights[2].dispenseSet=(data.z2Flags&2)!=0;
  // Deliberately NEVER restore motor position: no homing reference after restart.
  heights[1].position=0;heights[2].position=0;
+ heights[1].referenced=false;heights[2].referenced=false;
 }
 bool readSignedZValue(const char* json,long &value){
  const char *p=strstr(json,"\"value\"");
@@ -265,6 +267,7 @@ void abortTrial(){
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
  disableDrivers();
  holdingAxis[1]=false;holdingAxis[2]=false;
+ heights[1].referenced=false;heights[2].referenced=false;
  digitalWrite(Z1_DIR,LOW);digitalWrite(Z2_DIR,LOW);
  trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
 }
@@ -273,7 +276,7 @@ void parkTrial(){
  if(!trial.active)return;
  const uint8_t axis=trial.axis;
  digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
- trial.active=false;trial.high=false;
+ trial.active=false;trial.high=false;trial.automatic=false;
  holdingAxis[axis]=true;
  holdIdleHeartbeatMs=millis();
  armedAxis=0;armedMa=0;armedAt=0;
@@ -341,6 +344,12 @@ void serviceTrial(){
    digitalWrite(step,LOW);trial.high=false;trial.count++;
   // One signed relative microstep per actual STEP pulse completed.
   heights[trial.axis].position+=trial.up?1:-1;
+  if(trial.automatic && heights[trial.axis].position==trial.target){
+    const uint8_t axis=trial.axis;
+    const int32_t at=heights[axis].position;
+    parkTrial();
+    Serial.printf(R"json({"status":"DONE","auto_reached":true,"axis":%u,"position":%ld,"holding":true,"drivers_enabled":true})json" "\n",axis,(long)at);
+  }
  }
 }
 bool coldCommandAllowed(const char* cmd){
@@ -348,7 +357,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT","REFERENCE_Z_REST","GO_TO_Z_HEIGHT"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -376,6 +385,60 @@ void dispatch(const char* data) {
  if(!coldCommandAllowed(cmd)){replyError(id,"TEST_MODE_LEGACY_COMMAND_LOCKED");return;}
  if(strcmp(cmd,"GET_Z_HEIGHTS")==0){
    replyZHeights(id);
+ }else if(strcmp(cmd,"REFERENCE_Z_REST")==0){
+   if(trial.active){replyError(id,"STOP_BEFORE_REFERENCING");return;}
+   unsigned long axis=0,confirm=0;
+   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"confirm",confirm)||
+      axis<1||axis>2||confirm!=1){replyError(id,"INVALID_REFERENCE_COMMAND");return;}
+   ZHeights &h=heights[axis];
+   if(!h.restSet){replyError(id,"REST_HEIGHT_NOT_SAVED");return;}
+   if(!holdingAxis[axis]){replyError(id,"HOLD_MOTOR_AT_REST_FIRST");return;}
+   // Operator has manually positioned the needle at its saved REST height.
+   h.position=h.rest;h.referenced=true;
+   Serial.printf(R"json({"id":%lu,"status":"OK","axis":%lu,"reference_set":true,"position":%ld})json" "\n",
+      id,axis,(long)h.position);
+   replyZHeights(id);
+ }else if(strcmp(cmd,"GO_TO_Z_HEIGHT")==0){
+   if(trial.active){replyError(id,"BUSY_MOTOR_ACTIVE");return;}
+   unsigned long axis=0,kind=0,confirm=0;
+   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"kind",kind)||
+      !readUIntField(data,"confirm",confirm)||axis<1||axis>2||
+      kind<1||kind>2||confirm!=1){replyError(id,"INVALID_TARGET_REQUEST");return;}
+   ZHeights &h=heights[axis];
+   if(!h.referenced){replyError(id,"Z_ORIGIN_NOT_REFERENCED");return;}
+   if(!holdingAxis[axis]){replyError(id,"Z_NOT_HOLDING_POSITION");return;}
+   if((kind==1&&!h.restSet)||(kind==2&&!h.dispenseSet)){
+     replyError(id,"TARGET_HEIGHT_NOT_SAVED");return;
+   }
+   const int32_t target=kind==1?h.rest:h.dispense;
+   const int64_t distance=(int64_t)target-(int64_t)h.position;
+   if(distance==0){
+     Serial.printf(R"json({"id":%lu,"status":"OK","auto_reached":true,"axis":%lu,"position":%ld,"holding":true})json" "\n",
+        id,axis,(long)h.position);
+     return;
+   }
+   if(distance>(int64_t)AUTO_MAX_DISTANCE_STEPS||distance<-(int64_t)AUTO_MAX_DISTANCE_STEPS){
+     replyError(id,"AUTO_DISTANCE_EXCEEDS_4000_MICROSTEPS");return;
+   }
+   TMC2209Stepper &d=stallDriver((uint8_t)axis);
+   if(!probeStall((uint8_t)axis)||d.drv_err()||d.toff()==0||
+      d.rms_current()>HOLD_RMS_MAX_MA){
+     abortTrial();replyError(id,"AUTO_DRIVER_NOT_READY");return;
+   }
+   const bool up=distance>0;
+   digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
+   digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?LOW:HIGH);
+   delayMicroseconds(30);
+   const uint16_t targetSpeed=holdTargetSps<AUTO_MAX_SPEED_SPS?holdTargetSps:AUTO_MAX_SPEED_SPS;
+   holdingAxis[axis]=false;
+   trial.active=true;trial.automatic=true;trial.high=false;trial.up=up;
+   trial.axis=(uint8_t)axis;trial.target=target;trial.count=0;trial.id=id;
+   trial.began=micros();trial.actualSps=(float)(targetSpeed<HOLD_START_SPS?targetSpeed:HOLD_START_SPS);
+   trial.edge=trial.began-(1000000UL/(uint32_t)trial.actualSps);
+   trial.heartbeat=millis();trial.lastRampMs=trial.heartbeat;
+   digitalWrite(axis==1?Z1_EN:Z2_EN,LOW);
+   Serial.printf(R"json({"id":%lu,"status":"ACCEPTED","auto_move_started":true,"axis":%lu,"target":%ld,"distance":%ld,"max_sps":%u})json" "\n",
+      id,axis,(long)target,(long)distance,targetSpeed);
  }else if(strcmp(cmd,"SAVE_Z_HEIGHT")==0){
    if(trial.active){replyError(id,"STOP_BEFORE_CALIBRATION");return;}
    unsigned long axis=0,kind=0;
@@ -469,7 +532,7 @@ void dispatch(const char* data) {
    // Correct both axes' vertical orientation in software; do not swap motor coils.
    digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?LOW:HIGH);
    digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);delayMicroseconds(30);
-   trial.active=true;trial.high=false;trial.axis=(uint8_t)axis;trial.up=(up==1);trial.count=0;trial.id=id;
+   trial.active=true;trial.automatic=false;trial.high=false;trial.axis=(uint8_t)axis;trial.up=(up==1);trial.count=0;trial.id=id;
    trial.began=micros();trial.actualSps=(float)(holdTargetSps<HOLD_START_SPS?holdTargetSps:HOLD_START_SPS);
    trial.edge=trial.began-(1000000UL/(uint32_t)trial.actualSps);
    trial.heartbeat=millis();trial.lastRampMs=trial.heartbeat;
@@ -494,7 +557,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.0.0-touch-hold\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"1.1.0-z-presets\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
