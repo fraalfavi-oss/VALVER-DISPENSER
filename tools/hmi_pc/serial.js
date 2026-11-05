@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false};
 const el=id=>document.getElementById(id);
 const diagSamples={1:[],2:[]};
 const diagInfo={1:null,2:null};
@@ -128,9 +128,32 @@ function showColdTest(d){
   ' · Solo lectura de GPIO ESP32; no prueba continuidad externa';
  log('AUTO-CHECK: '+(good?'GPIO locales OK':'FALLO GPIO')+' | conexiones físicas NO verificadas');
 }
+
+function updateMotorTest(){
+ const axis=Number(el('motorAxis').value),rated=Number(el('motorRated').value);
+ const allowed=connected&&pingOK&&verified&&!trialActive;
+ const valid=el('motorRated').value.trim()!==''&&rated>=150&&rated<=2000;
+ el('motorPrepare').disabled=!allowed||!valid||!el('motorChecked').checked||!testReadyUart[axis];
+ el('motorAxis').disabled=trialActive;
+ for(const k of ['motorUp','motorDown'])el(k).disabled=!allowed||armedTestAxis!==axis||!el('motorChecked').checked;
+ el('motorStop').disabled=!connected;
+}
+function stopTrialHeartbeat(){
+ if(trialBeatTimer){clearInterval(trialBeatTimer);trialBeatTimer=null;}
+ trialActive=false;updateMotorTest();
+}
+function startMotorPulse(up){
+ if(!connected||!verified||trialActive||!el('motorChecked').checked)return;
+ if(armedTestAxis!==Number(el('motorAxis').value))return;
+ trialActive=true;updateMotorTest();
+ el('motorTestState').textContent='Prueba breve en curso. Parada automática activa…';
+ void send('TEST_PULSE',{axis:armedTestAxis,up:up?1:0});
+ if(trialBeatTimer)clearInterval(trialBeatTimer);
+ trialBeatTimer=setInterval(()=>{if(connected&&trialActive)void send('TEST_HEARTBEAT');},110);
+}
 function update(){
  const ready=connected&&pingOK&&verified&&!testing&&!coldMode;
- el('state').textContent=connected?(pingOK?(verified?'USB · BLOQUEO EN FRÍO':'COM · VERIFICAR FIRMWARE'):'COM ABIERTO · SIN PONG'):'DESCONECTADO';
+ el('state').textContent=connected?(pingOK?(verified?'ESP32 · PRUEBA LIMITADA':'COM · VERIFICAR FIRMWARE'):'COM ABIERTO · SIN PONG'):'DESCONECTADO';
  el('state').style.color=pingOK&&verified?'#f0c581':'#f5b4b4';
  for(const id of ['ping','info','status','sensors','readiness','disconnect'])el(id).disabled=!connected;
  el('connect').disabled=connected;
@@ -150,12 +173,13 @@ function update(){
  el('disable').disabled=!connected||!pingOK;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
  el('stallState').textContent=selected?(stallData['z'+selected+'_enabled']?'Z'+selected+' · ACTIVA':stallData['z'+selected+'_uart']?'Z'+selected+' · UART OK, detector apagado':'Z'+selected+' · UART sin conexión'):'Selecciona Z1/Z2';
- el('armState').textContent='BLOQUEO EN FRÍO · MOTORES DESHABILITADOS';
+ el('armState').textContent=trialActive?'PULSO EN CURSO':'CONTINUO BLOQUEADO · PULSO LIMITADO';
  for(const n of [1,2]){
   el('card'+n).classList.toggle('selected',selected===n);
   el('card'+n).classList.toggle('locked',selected!==n);
  }
- document.querySelectorAll('.test').forEach(b=>b.disabled=(!jogHeld&&(!ready||selected===0))||!b.dataset.cmd.includes('Z'+selected));
+ document.querySelectorAll('.test').forEach(b=>b.disabled=true);
+ updateMotorTest();
 }
 function response(data){
  if(data.reply==='PONG'){
@@ -166,23 +190,23 @@ function response(data){
    send('GET_INFO');send('GET_STATUS');
  }
  if(data.device==='VALVER SMART DISPENSER'&&typeof data.firmware==='string'){
-   el('coldFirmware').textContent=(data.mode==='COLD_INSPECTION'?'OK · ':'NO SEGURO · ')+data.firmware;
-   el('coldFirmware').style.color=data.mode==='COLD_INSPECTION'?'#a7f0c8':'#ffaaaa';
+   el('coldFirmware').textContent=(data.mode==='SINGLE_PULSE_TEST'?'OK · ':'NO SEGURO · ')+data.firmware;
+   el('coldFirmware').style.color=data.mode==='SINGLE_PULSE_TEST'?'#a7f0c8':'#ffaaaa';
  }
- if(typeof data.mode==='string'&&data.mode!=='COLD_INSPECTION'){
+ if(typeof data.mode==='string'&&data.mode!=='SINGLE_PULSE_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.8.0-cold-inspection';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.0-single-pulse';
  }
- if(data.state==='COLD_INSPECTION'){
+ if(data.state==='SINGLE_PULSE_TEST'){
    if(!verified){
      verified=true;coldMode=true;
-     el('coldFirmware').textContent='OK · BLOQUEO COLD_INSPECTION';
+     el('coldFirmware').textContent='OK · BLOQUEO SINGLE_PULSE_TEST';
      el('coldFirmware').style.color='#a7f0c8';
      log('Bloqueo de movimiento confirmado · iniciando autodiagnóstico');
-     send('GET_COLD_CHECK');
+     send('GET_COLD_CHECK');send('GET_DRIVER_TEST');
      if(coldPollTimer)clearInterval(coldPollTimer);
      coldPollTimer=setInterval(()=>{
-       if(connected&&pingOK&&verified&&!closing)void send('GET_COLD_CHECK');
+       if(connected&&pingOK&&verified&&!closing&&!trialActive){void send('GET_COLD_CHECK');void send('GET_DRIVER_TEST');}
      },5000);
    }
  }
@@ -191,6 +215,27 @@ function response(data){
    el('coldResult').textContent='FIRMWARE ANTIGUO: no continuar sin actualizar';
  }
  if(data.cold_check){showColdTest(data.cold_check);}
+ if(data.driver_test){
+   testReadyUart[1]=data.driver_test.z1_uart===true;
+   testReadyUart[2]=data.driver_test.z2_uart===true;
+   el('coldUart').textContent='Z1: '+(testReadyUart[1]?'OK':'SIN RESPUESTA')+' · Z2: '+(testReadyUart[2]?'OK':'SIN RESPUESTA');
+   if(!trialActive&&armedTestAxis===0)el('motorTestState').textContent='UART Z1/Z2 comprobado. Introduce la corriente NOMINAL del motor y selecciona su driver.';
+ }
+ if(data.test_prepared){
+   armedTestAxis=Number(data.axis);
+   el('motorTestState').textContent='Z'+armedTestAxis+' preparado a '+data.rms_target_ma+' mA RMS. Disponible 10 s: pulsa subir o bajar.';
+ }
+ if(data.test_running){
+   trialActive=true;
+   el('motorTestState').textContent='Motor Z'+data.axis+' · micropasos en ejecución';
+ }
+ if(data.status==='DONE'&&['PULSE_TEST_COMPLETE','TIMEOUT_OR_LINK_LOST'].includes(data.reason)){
+   stopTrialHeartbeat();armedTestAxis=0;
+   el('motorTestState').textContent=data.reason==='PULSE_TEST_COMPLETE'?
+     'Finalizado · '+data.pulses+' micropasos · EN deshabilitado':
+     'Parada por tiempo o pérdida de comunicación · EN deshabilitado';
+ }
+
  if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){
    el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);
    if(!jogHeld&&data.speed_sps<400)el('loadStatus').textContent='Para medir carga, usa 400 pasos/s o más';
@@ -230,6 +275,8 @@ function response(data){
  if(typeof data.stall_enabled==='boolean'&&data.axis)stallData['z'+data.axis+'_enabled']=data.stall_enabled;
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){
+   stopTrialHeartbeat();armedTestAxis=0;
+   el('motorTestState').textContent='Error: '+data.code+' · prueba no autorizada';
    log('ERROR: '+data.code);
    if(data.code==='UART_NOT_CONNECTED'){
      el('loadStatus').textContent='Sin UART · Verificar cableado';
@@ -265,7 +312,7 @@ async function connect(authorizedPort=null){
   port=authorizedPort||await navigator.serial.requestPort();
   await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
+  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
   el('coldUsb').textContent='COM ABIERTO · ESPERANDO PONG';
   el('coldFirmware').textContent='PENDIENTE';
   el('coldGpio').textContent='PENDIENTE';
@@ -283,6 +330,7 @@ async function connect(authorizedPort=null){
 async function disconnect(){
  if(closing)return;
  if(coldPollTimer){clearInterval(coldPollTimer);coldPollTimer=null;}
+ stopTrialHeartbeat();armedTestAxis=0;testReadyUart={1:false,2:false};
  endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;autoSelected=false;
  el('coldUsb').textContent='DESCONECTADO';el('coldUsb').style.color='#ffaaaa';
  el('coldGpio').textContent='SIN LECTURA ACTUAL';
@@ -297,7 +345,8 @@ async function disconnect(){
 function send(cmd,fields={}){
  if(!connected||!writer)return Promise.resolve();
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
-  'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP']);
+  'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
+  'GET_DRIVER_TEST','PREPARE_TEST','TEST_PULSE','TEST_HEARTBEAT']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
@@ -310,6 +359,22 @@ function send(cmd,fields={}){
 }
 el('connect').onclick=()=>void connect();
 el('disconnect').onclick=disconnect;
+for(const key of ['motorAxis','motorRated','motorChecked'])el(key).onchange=()=>{
+ armedTestAxis=0;updateMotorTest();
+};
+el('motorPrepare').onclick=()=>{
+ const axis=Number(el('motorAxis').value),rated=Number(el('motorRated').value);
+ if(!connected||!verified||!testReadyUart[axis]||!el('motorChecked').checked||
+    !el('motorRated').value.trim()||rated<150||rated>2000)return;
+ armedTestAxis=0;el('motorTestState').textContent='Configurando corriente limitada vía UART…';
+ void send('PREPARE_TEST',{axis,rated_ma:rated,confirm:1});
+};
+el('motorUp').onclick=()=>startMotorPulse(true);
+el('motorDown').onclick=()=>startMotorPulse(false);
+el('motorStop').onclick=()=>{
+ stopTrialHeartbeat();armedTestAxis=0;void send('STOP_TEST');
+ el('motorTestState').textContent='Parada solicitada · EN deshabilitado';
+};
 el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
