@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1};
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null;
 const el=id=>document.getElementById(id);
 const diagSamples={1:[],2:[]};
 const diagInfo={1:null,2:null};
@@ -109,12 +109,36 @@ function receiveLoad(d){
  drawLoadChart();
 }
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
+function coldManualCount(){
+ const all=[...document.querySelectorAll('#coldChecklist input.cold-manual')];
+ const done=all.filter(c=>c.checked).length;
+ el('coldCounter').textContent='Comprobaciones físicas: '+done+'/'+all.length+' · NO autoriza aplicar 24 V';
+}
+function showColdTest(d){
+ latestCold=d;
+ const z1=d.z1||{},z2=d.z2||{};
+ const ok=d.cold_lock===true&&d.gpio_local_safe===true&&
+  z1.en_high===true&&z1.step_low===true&&z1.dir_low===true&&
+  z2.en_high===true&&z2.step_low===true&&z2.dir_low===true;
+ el('coldResult').textContent=ok?'GPIO locales correctos · EN HIGH, STEP/DIR LOW':
+   'ERROR DE NIVELES GPIO · NO CONECTAR 24 V';
+ el('coldResult').style.color=ok?'#b8f4d5':'#ffb8b8';
+ el('coldDetails').textContent='Z1: EN '+(z1.en_high?'HIGH OK':'FALLO')+
+  ' · STEP '+(z1.step_low?'LOW OK':'FALLO')+
+  ' · DIR '+(z1.dir_low?'LOW OK':'FALLO')+
+  ' | Z2: EN '+(z2.en_high?'HIGH OK':'FALLO')+
+  ' · STEP '+(z2.step_low?'LOW OK':'FALLO')+
+  ' · DIR '+(z2.dir_low?'LOW OK':'FALLO')+
+  ' | Cableado externo NO VERIFICADO';
+ log('DIAGNÓSTICO LOCAL EN FRÍO: '+JSON.stringify(d));
+}
 function update(){
- const ready=connected&&pingOK&&verified&&!testing;
- el('state').textContent=connected?(pingOK?'ESP32 RESPONDE':'COM ABIERTO · SIN PONG'):'DESCONECTADO';
- el('state').style.color=pingOK?'#5fe2ad':'#f5b4b4';
+ const ready=connected&&pingOK&&verified&&!testing&&!coldMode;
+ el('state').textContent=connected?(pingOK?(verified?'USB · BLOQUEO EN FRÍO':'COM · VERIFICAR FIRMWARE'):'COM ABIERTO · SIN PONG'):'DESCONECTADO';
+ el('state').style.color=pingOK&&verified?'#f0c581':'#f5b4b4';
  for(const id of ['ping','info','status','sensors','readiness','disconnect'])el(id).disabled=!connected;
  el('connect').disabled=connected;
+ el('coldTest').disabled=!connected||!pingOK||!verified;
  el('stop').disabled=!connected;
  el('speed').disabled=!ready;
  el('diagCompare').disabled=!ready || jogHeld;
@@ -126,10 +150,11 @@ function update(){
  el('stallSensitivity').disabled=!axisReady;
  el('stallSuggest').disabled=!axisReady||loadSuggestedThreshold===null;
  for(const id of ['stallMinus','stallPlus','stallNumber'])el(id).disabled=!axisReady;
- for(const id of ['choose1','choose2','disable'])el(id).disabled=!connected||!pingOK||testing;
+ for(const id of ['choose1','choose2'])el(id).disabled=true;
+ el('disable').disabled=!connected||!pingOK;
  el('channelState').textContent=selected?'Z'+selected:'NINGUNO';
  el('stallState').textContent=selected?(stallData['z'+selected+'_enabled']?'Z'+selected+' · ACTIVA':stallData['z'+selected+'_uart']?'Z'+selected+' · UART OK, detector apagado':'Z'+selected+' · UART sin conexión'):'Selecciona Z1/Z2';
- el('armState').textContent=testing?'MOVIENDO · Z'+selected:'MOTORES DETENIDOS';
+ el('armState').textContent='BLOQUEO EN FRÍO · MOTORES DESHABILITADOS';
  for(const n of [1,2]){
   el('card'+n).classList.toggle('selected',selected===n);
   el('card'+n).classList.toggle('locked',selected!==n);
@@ -138,15 +163,26 @@ function update(){
 }
 function response(data){
  if(data.reply==='PONG'){
-  pingOK=true;
-  log('Comunicación verificada con PONG');
-  if(!autoSelected){autoSelected=true;send('SELECT_Z1');log('Z1: selección automática enviada');}
-  send('GET_STATUS');send('GET_SENSORS');
+   pingOK=true;
+   log('PONG recibido · verificando versión segura antes de cualquier comando');
+   send('GET_INFO');send('GET_STATUS');
+ }
+ if(typeof data.mode==='string'&&data.mode!=='COLD_INSPECTION'){
+   verified=false;
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.8.0-cold-inspection';
+ }
+ if(data.state==='COLD_INSPECTION'){
+   if(!verified){
+     verified=true;coldMode=true;
+     log('Bloqueo de movimiento confirmado. Solo inspección local por USB.');
+     send('GET_COLD_CHECK');
+   }
  }
  if(data.state==='HOLD_MOTOR_JOG'){
-   verified=true;
-
+   verified=false;coldMode=true;
+   el('coldResult').textContent='FIRMWARE ANTIGUO: no continuar sin actualizar';
  }
+ if(data.cold_check){showColdTest(data.cold_check);}
  if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){
    el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);
    if(!jogHeld&&data.speed_sps<400)el('loadStatus').textContent='Para medir carga, usa 400 pasos/s o más';
@@ -166,15 +202,8 @@ function response(data){
  }
  if(data.stallguard){
   stallData={...stallData,...data.stallguard};
-  // Configure passive monitoring once the UART is confirmed.
-  // This does not activate the automatic stall stop.
-  for(const axis of [1,2]){
-    if(stallData['z'+axis+'_uart']&&!stallData['z'+axis+'_monitoring']&&!monitorRequested[axis]){
-      monitorRequested[axis]=true;
-      send('MONITOR_STALL',{axis});
-    }
-  }
-  el('sensorReadout').textContent='StallGuard4 · Z1 UART: '+(stallData.z1_uart?'OK':'sin conexión')+' · Z2 UART: '+(stallData.z2_uart?'OK':'sin conexión');
+  // Cold inspection: no automatic TMC2209 UART commands.
+  el('sensorReadout').textContent='UART Z1/Z2: NO COMPROBADO (VM desconectado)';
   if(selected){el('stallSensitivity').value=String(stallData['z'+selected+'_threshold']??40);el('stallNumber').value=el('stallSensitivity').value;el('stallValue').textContent=el('stallSensitivity').value;}
  }
  if(data.status==='SAMPLE'&&data.axis){
@@ -225,7 +254,9 @@ async function connect(){
  try{
   port=await navigator.serial.requestPort();await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;pingOK=false;verified=false;selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
+  connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
+  el('coldResult').textContent='Esperando confirmación de firmware seguro…';
+  el('coldDetails').textContent='—';
   log('COM abierto');void readLoop();void send('PING');
  }catch(e){log('Error de conexión: '+e.message);await disconnect();}
 }
@@ -239,6 +270,9 @@ async function disconnect(){
 }
 function send(cmd,fields={}){
  if(!connected||!writer)return Promise.resolve();
+ const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
+  'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP']);
+ if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
  txQueue=txQueue.catch(()=>{}).then(async()=>{
@@ -249,11 +283,14 @@ function send(cmd,fields={}){
  return txQueue;
 }
 el('connect').onclick=connect;el('disconnect').onclick=disconnect;
+el('coldTest').onclick=()=>{if(verified)send('GET_COLD_CHECK');};
+document.querySelectorAll('#coldChecklist input.cold-manual').forEach(c=>c.addEventListener('change',coldManualCount));
+coldManualCount();
 el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
 el('sensors').onclick=()=>send('GET_SENSORS');
-el('diagCompare').onclick=()=>{if(!jogHeld){send('DIAG_TMC');send('GET_SENSORS');}};
+el('diagCompare').onclick=()=>log('DIAG_TMC no disponible: inspección sin 24 V');
 el('diagReset').onclick=diagReset;
 function setStallValue(v){const n=Math.max(0,Math.min(255,Math.round(Number(v)||0)));el('stallSensitivity').value=String(n);el('stallNumber').value=String(n);el('stallValue').textContent=String(n);}
 el('loadGain').oninput=()=>{if(!selected)return;loadGains[selected]=Number(el('loadGain').value);el('loadGainValue').textContent=loadGains[selected]+'×';};
@@ -284,7 +321,7 @@ function endJog(){
  void send('JOG_MOTOR_STOP');
 }
 function beginJog(b,e){
- if(b.disabled||jogHeld||!connected||!verified)return;
+ if(coldMode||b.disabled||jogHeld||!connected||!verified)return;
  if(e.pointerType==='mouse'&&e.button!==0)return;
  jogHeld=true;testing=true;resetLoad(selected);el('loadStatus').textContent='Arrancando · se requieren ≥400 pasos/s';update();
  b.setPointerCapture?.(e.pointerId);
