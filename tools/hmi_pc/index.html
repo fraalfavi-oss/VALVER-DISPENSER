@@ -159,6 +159,11 @@ nav button.nav{display:block!important;min-height:52px;height:auto;padding:8px 5
 body.cold-ui nav button.nav{display:block!important}
 body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 @media(max-width:800px){main{margin:0} .layout{grid-template-columns:125px minmax(0,1fr)}}
+
+.cal-jog-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.cal-jog-grid>div{display:grid;grid-template-columns:auto 1fr 1fr;align-items:center;gap:5px;background:#122b40;border-radius:7px;padding:7px}
+.cal-jog-grid strong{font-size:10px;white-space:nowrap}
+.cal-jog-grid button{min-height:45px;font-size:11px;padding:5px 2px;touch-action:manipulation}
 </style></head><body class="cold-ui"><div id="heightKeypad" class="height-keypad" role="dialog" aria-modal="true" aria-labelledby="heightKeypadTitle" hidden>
 <div class="keypad-panel">
 <div class="keypad-top"><span id="heightKeypadTitle">ALTURA COMÚN · MICROPASOS</span><button id="keypadClose" type="button" aria-label="Cerrar">×</button></div>
@@ -219,6 +224,10 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 <div id="calibrationPage" class="screen-page" hidden>
 <section class="height-cal calibration-view" id="heightCalDetails" aria-label="Calibración de alturas Z">
  <div class="calibration-header"><strong>CALIBRAR ALTURAS</strong><small>Marcar alturas individuales o comunes</small></div>
+<div class="cal-jog-grid">
+ <div><strong>Z1 · CONDUCTIVO</strong><button id="calZ1Up" type="button" disabled>▲ SUBIR</button><button id="calZ1Down" type="button" disabled>▼ BAJAR</button></div>
+ <div><strong>Z2 · ESTRUCTURAL</strong><button id="calZ2Up" type="button" disabled>▲ SUBIR</button><button id="calZ2Down" type="button" disabled>▼ BAJAR</button></div>
+</div>
  <div class="height-cal-body">
  <div class="height-row">
    <strong>Z1</strong><span id="z1Position">Pos. 0</span>
@@ -277,4 +286,4 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-simple-nav-13"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-simple-nav-14"></script></body></html>
