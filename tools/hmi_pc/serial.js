@@ -308,8 +308,11 @@ function updateMotorTest(){
    const active=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld&&testReadyUart[axis];
    for(const kind of ['Rest','Dispense'])el('saveZ'+axis+kind).disabled=!(active&&heldAxes.has(axis));
    el('clearZ'+axis+'Heights').disabled=!active;
-   el('referenceZ'+axis+'Rest').disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].restSet&&!heightFlags[axis].referenced);
-   el('referenceZ'+axis+'Rest').hidden=heightFlags[axis].referenced||!heightFlags[axis].restSet;
+   const restConfirmAvailable=heightFlags[axis].restSet&&!heightFlags[axis].referenced;
+   el('referenceZ'+axis+'Rest').disabled=!(active&&heldAxes.has(axis)&&restConfirmAvailable);
+   el('referenceZ'+axis+'Rest').hidden=!restConfirmAvailable;
+   el('restoreZ'+axis+'Rest').hidden=!restConfirmAvailable;
+   el('restoreZ'+axis+'Rest').disabled=!(active&&heldAxes.has(axis)&&restConfirmAvailable);
    for(const [kind,label] of [['restSet','Rest'],['dispenseSet','Dispense']]){
      const other=axis===1?2:1;
      const otherReady=heightFlags[other].referenced&&heightFlags[other].restSet&&heldAxes.has(other);
@@ -753,6 +756,11 @@ for(const axis of [1,2]){
  el('referenceZ'+axis+'Rest').onclick=()=>{
    if(!connected||!verified||trialActive||preparingTest||!heldAxes.has(axis)||!heightFlags[axis].restSet)return;
    if(!window.confirm('¿La aguja Z'+axis+' está ahora en el REPOSO que marcaste?'))return;
+   void send('REFERENCE_Z_REST',{axis,confirm:1});
+ };
+ el('restoreZ'+axis+'Rest').onclick=()=>{
+   if(!connected||!verified||trialActive||preparingTest||!heldAxes.has(axis)||!heightFlags[axis].restSet)return;
+   if(!window.confirm('¿Z'+axis+' está físicamente en su reposo guardado?'))return;
    void send('REFERENCE_Z_REST',{axis,confirm:1});
  };
  for(const [kind,name] of [[1,'Rest'],[2,'Dispense']]){
