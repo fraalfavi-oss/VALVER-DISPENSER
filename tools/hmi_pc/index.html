@@ -109,12 +109,12 @@ body.cold-ui #jogHint{display:none!important}
  <small id="rgbPinNote">LED integrado automático · apagado cuando ambos motores están detenidos</small>
 </div>
 <div class="simple-settings">
-<label for="motorRated">Corriente nominal NEMA 11 (mA): <input id="motorRated" type="number" min="150" max="2000" step="10" placeholder="Según etiqueta"></label>
+<label for="motorRated">Corriente nominal REAL por fase (mA): <input id="motorRated" type="number" min="150" max="2000" step="10" placeholder="Según etiqueta"></label>
 <label><input id="motorChecked" type="checkbox"> Verificados 12 V, polaridad, VIO, GND, bobinas y corriente nominal</label>
 </div>
 <div class="motor-row"><button id="motorStop" class="stop" type="button">■ PARADA</button>
 <span id="motorTestState">UART y corriente pendientes · motores bloqueados</span></div>
-<p class="simple-foot">Mantén pulsado para mover; suelta para detener. Parada automática si se pierde la comunicación o a los 10 segundos. La corriente del motor se mantiene limitada y verificada. La fuente limitada a 15 mA NO sirve para moverlo.</p>
+<p class="simple-foot">Mantén pulsado para mover; suelta para detener. Parada automática si se pierde la comunicación o a los 10 segundos. Corriente de movimiento: 90% de la nominal introducida, máximo 800 mA RMS. El dato debe ser el de la etiqueta/ficha del motor, no el límite de la fuente. La fuente a 15 mA no sirve para moverlo.</p>
 </section>
 <details class="diag-fold"><summary>Autodiagnóstico de conexiones (ver resultados)</summary>
 <section class="cold-panel" id="coldPanel" aria-label="Autodiagnóstico USB seguro">
@@ -143,4 +143,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-internal-rgb-5"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-current-rated-6"></script></body></html>
