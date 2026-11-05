@@ -188,6 +188,7 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 #wizardComplete strong{font-size:20px;color:#83e2b4}
 #wizardComplete p{font-size:14px;line-height:1.5}
 .wizard-note{color:#9fc1d4;font-size:11px;line-height:1.45;margin:12px 3px 1px}
+.wizard-finish{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.wizard-finish button{min-height:51px;padding:7px;font-size:12px}.wizard-move button:disabled{opacity:.3}
 </style></head><body class="cold-ui"><div id="heightKeypad" class="height-keypad" role="dialog" aria-modal="true" aria-labelledby="heightKeypadTitle" hidden>
 <div class="keypad-panel">
 <div class="keypad-top"><span id="heightKeypadTitle">ALTURA COMÚN · MICROPASOS</span><button id="keypadClose" type="button" aria-label="Cerrar">×</button></div>
@@ -266,7 +267,7 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
  <div id="wizardComplete" hidden>
   <strong>✓ ALTURAS GUARDADAS</strong>
   <p id="wizardDoneText">Los botones IR A REPOSO e IR A DISPENSACIÓN ya usan estas posiciones.</p>
-  <button id="wizardRestart" class="wizard-primary" type="button">CONFIGURAR OTRA VEZ</button>
+  <div class="wizard-finish"><button id="wizardRestart" type="button">CONFIGURAR OTRA VEZ</button><button id="wizardGoControl" class="wizard-primary" type="button">IR A CONTROL Z</button></div>
  </div>
  <p class="wizard-note" id="wizardNote">Se guardan en la memoria del ESP32. Supervisa siempre los movimientos; sin sensor de origen, después de apagar debes confirmar la posición física antes de usar IR A.</p>
 </section>
@@ -334,4 +335,4 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-wizard-15"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-wizard-16"></script></body></html>
