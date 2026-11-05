@@ -225,7 +225,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.5-internal-rgb';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.6-rated-current';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -266,7 +266,7 @@ function response(data){
  if(data.hold_running){
    el('rgbPinNote').textContent=Number(data.axis)===1?'Z1 activo · luz azul':'Z2 activo · luz roja';
    trialActive=true;
-   el('motorTestState').textContent='Z'+data.axis+' · MOVIENDO mientras mantengas pulsado';
+   el('motorTestState').textContent='Z'+data.axis+' · MOVIENDO · '+(data.rms_target_ma??'?')+' mA RMS de corriente configurada';
  }
  if(data.status==='DONE'&&data.reason==='HOLD_TIMEOUT_OR_LINK_LOST'){
    el('rgbPinNote').textContent='Apagado · motor detenido';
