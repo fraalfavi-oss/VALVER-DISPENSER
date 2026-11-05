@@ -106,9 +106,7 @@ body.cold-ui #jogHint{display:none!important}
 <div class="rgb-pin-row">
  <span class="rgb-dot rgb-blue"></span> Z1: azules
  <span class="rgb-dot rgb-red"></span> Z2: rojos
- <label for="rgbPin">LED integrado:</label>
- <select id="rgbPin" disabled aria-label="GPIO LED RGB"><option value="48">GPIO48</option><option value="38">GPIO38</option></select>
- <small id="rgbPinNote">Apagado en reposo · si no luce, prueba el otro GPIO</small>
+ <small id="rgbPinNote">LED integrado automático · apagado cuando ambos motores están detenidos</small>
 </div>
 <div class="simple-settings">
 <label for="motorRated">Corriente nominal NEMA 11 (mA): <input id="motorRated" type="number" min="150" max="2000" step="10" placeholder="Según etiqueta"></label>
@@ -145,4 +143,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-axis-rgb-4"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-internal-rgb-5"></script></body></html>
