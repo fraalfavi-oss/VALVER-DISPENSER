@@ -54,6 +54,7 @@ nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286
 <h3>INSPECCIÓN EN FRÍO · SIN 24 V · SIN BOBINAS</h3>
 <p>Solo ESP32-S3 conectado por USB. <b>Los drivers y motores no pueden activarse.</b> El software lee niveles locales del ESP32; no puede comprobar el cableado de potencia.</p>
 <div class="cold-top"><button type="button" id="coldTest" disabled>Comprobar GPIO en reposo</button><span id="coldResult">Pendiente · Firmware 0.8.0 necesario</span></div>
+<p id="coldDetails" style="font-family:Consolas,monospace;color:#b7e7ed;white-space:pre-wrap">—</p>
 <table class="cold-table"><thead><tr><th>Eje</th><th>STEP / DIR / EN</th><th>UART sin comprobar</th><th>Bobinas</th></tr></thead>
 <tbody><tr><td>Z1 conductivo</td><td>GPIO4 / 5 / 6</td><td>RX17 · TX18 (1 kΩ)</td><td>A1/A2 y B1/B2</td></tr>
 <tr><td>Z2 estructural</td><td>GPIO7 / 15 / 16</td><td>RX10 · TX9 (1 kΩ)</td><td>A1/A2 y B1/B2</td></tr></tbody></table>
