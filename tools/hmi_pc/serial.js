@@ -144,6 +144,7 @@ function updateMotorTest(){
  }
  el('motorStop').disabled=!connected;
  el('holdSpeed').disabled=!connected||!verified||preparingTest||trialActive;
+ el('rgbPin').disabled=!connected||!verified||preparingTest||trialActive;
 }
 function stopTrialHeartbeat(){
  if(trialBeatTimer){clearInterval(trialBeatTimer);trialBeatTimer=null;}
@@ -224,7 +225,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.3-faster-dir-corrected';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.4-axis-rgb';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -232,7 +233,7 @@ function response(data){
      el('coldFirmware').textContent='OK · BLOQUEO HOLD_MOTOR_TEST';
      el('coldFirmware').style.color='#a7f0c8';
      log('Bloqueo de movimiento confirmado · iniciando autodiagnóstico');
-     send('GET_COLD_CHECK');send('GET_DRIVER_TEST');
+     send('GET_COLD_CHECK');send('GET_DRIVER_TEST');send('GET_RGB_PIN');
      if(coldPollTimer)clearInterval(coldPollTimer);
      coldPollTimer=setInterval(()=>{
        if(connected&&pingOK&&verified&&!closing&&!trialActive&&!preparingTest){void send('GET_COLD_CHECK');void send('GET_DRIVER_TEST');}
@@ -244,6 +245,10 @@ function response(data){
    el('coldResult').textContent='FIRMWARE ANTIGUO: no continuar sin actualizar';
  }
  if(data.cold_check){showColdTest(data.cold_check);}
+ if(Number.isFinite(data.rgb_pin)&&(data.rgb_pin===38||data.rgb_pin===48)){
+   el('rgbPin').value=String(data.rgb_pin);
+   el('rgbPinNote').textContent='GPIO'+data.rgb_pin+' seleccionado · apagado sin movimiento';
+ }
  if(data.driver_test){
    testReadyUart[1]=data.driver_test.z1_uart===true;
    testReadyUart[2]=data.driver_test.z2_uart===true;
@@ -263,10 +268,12 @@ function response(data){
    }
  }
  if(data.hold_running){
+   el('rgbPinNote').textContent=Number(data.axis)===1?'Z1 activo · luz azul':'Z2 activo · luz roja';
    trialActive=true;
    el('motorTestState').textContent='Z'+data.axis+' · MOVIENDO mientras mantengas pulsado';
  }
  if(data.status==='DONE'&&data.reason==='HOLD_TIMEOUT_OR_LINK_LOST'){
+   el('rgbPinNote').textContent='Apagado · motor detenido';
    pressHeld=false;heldControlId=null;stopTrialHeartbeat();
    el('motorTestState').textContent='Parada por seguridad (10 s o comunicación) · suelta y vuelve a pulsar';
  }
@@ -317,6 +324,7 @@ function response(data){
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){
    if(trialActive||preparingTest)void send('STOP_TEST');
+   el('rgbPinNote').textContent='Apagado · revisa el error';
    pressHeld=false;heldControlId=null;stopTrialHeartbeat();
    el('motorTestState').textContent='Error: '+data.code+' · prueba no autorizada';
    log('ERROR: '+data.code);
@@ -388,7 +396,7 @@ function send(cmd,fields={}){
  if(!connected||!writer)return Promise.resolve();
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
-  'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED']);
+  'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED','GET_RGB_PIN','SET_RGB_PIN']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
@@ -401,6 +409,14 @@ function send(cmd,fields={}){
 }
 el('connect').onclick=()=>void connect();
 el('disconnect').onclick=disconnect;
+el('rgbPin').onchange=()=>{
+ if(!connected||!verified||trialActive||preparingTest)return;
+ const pin=Number(el('rgbPin').value);
+ if(pin===38||pin===48){
+   el('rgbPinNote').textContent='Configurando GPIO'+pin+'…';
+   void send('SET_RGB_PIN',{pin});
+ }
+};
 el('holdSpeed').oninput=()=>{
  el('holdSpeedValue').textContent=el('holdSpeed').value;
  el('holdSpeedInfo').textContent='Velocidad seleccionada: '+el('holdSpeed').value+' pasos/s';
