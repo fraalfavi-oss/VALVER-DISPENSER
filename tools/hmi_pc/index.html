@@ -66,6 +66,11 @@ nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286
 .height-row button.height-clear{background:#5c3441;font-size:14px;padding:5px 3px}
 .height-row>span{color:#a9d6ef}
 .height-cal>small{display:block;font-size:10px;line-height:1.4;color:#a0bfce;padding-top:4px}
+.height-shared{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0 7px;border-top:1px solid #355b78;margin-top:7px;font-size:11px}
+.height-shared label{color:#c2e1f1;font-size:11px}
+.height-shared input{width:90px;background:#0c2234;color:#e7f6ff;border:1px solid #4a6f85;border-radius:5px;padding:6px;margin-left:5px}
+.height-shared button{background:#275e81;padding:8px;font-size:11px;border-radius:6px}
+.height-shared button:disabled{opacity:.5}
 @media(max-width:750px){.height-row{grid-template-columns:24px 1fr 1fr 42px}.height-row #z1DispenseValue,.height-row #z2DispenseValue{grid-column:auto}}
 .simple-settings{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0;font-size:11px}
 .simple-settings label{font-size:11px}.simple-settings input[type=number]{width:115px}
@@ -111,11 +116,11 @@ body.cold-ui #jogHint{display:none!important}
 <div class="speed-box"><div class="speed-caption"><label for="holdSpeed">VELOCIDAD Z1 Y Z2</label><strong><span id="holdSpeedValue">1600</span> micropasos/s</strong></div>
 <input id="holdSpeed" type="range" min="80" max="8000" step="20" value="1600" disabled>
 <div class="speed-ends"><span>80 · suave</span><span>8000 · rápido</span></div>
-<small id="holdSpeedInfo">Ajusta con los motores detenidos. Velocidad inicial 1600; prueba velocidades altas lejos de los topes. Aceleración progresiva. Dirección SUBIR/BAJAR corregida por software.</small></div>
+<small id="holdSpeedInfo">Ajusta con los motores detenidos. Se guarda automáticamente en el ESP32 y se restaura al encender. Aceleración progresiva.</small></div>
 <div class="rgb-pin-row">
  <span class="rgb-dot rgb-blue"></span> Z1: azules
  <span class="rgb-dot rgb-red"></span> Z2: rojos
- <small id="rgbPinNote">LED integrado automático · apagado cuando ambos motores están detenidos</small>
+ <small id="rgbPinNote">LED integrado automático · GPIO48/GPIO38 compatibles, sin cables ni selección</small>
 </div>
 <section class="height-cal" aria-label="Calibración de alturas Z">
  <div class="height-heading"><strong>CALIBRAR ALTURAS</strong><small>Sube o baja, suelta y guarda la posición</small></div>
@@ -131,7 +136,12 @@ body.cold-ui #jogHint{display:none!important}
    <button id="saveZ2Dispense" disabled>Guardar dispensación</button><span id="z2DispenseValue">—</span>
    <button id="clearZ2Heights" class="height-clear" disabled title="Borrar alturas Z2">×</button>
  </div>
- <small id="heightCalNotice">Valores relativos en micropasos, NO en mm. Sin sensor de origen, se pierden al reiniciar; no hay movimiento automático.</small>
+ <div class="height-shared">
+  <label for="sharedHeightValue">Valor común <input id="sharedHeightValue" type="number" value="0" min="-2000000" max="2000000" step="1"></label>
+  <button id="sharedRest" disabled>Reposo · Z1 + Z2</button>
+  <button id="sharedDispense" disabled>Dispensación · Z1 + Z2</button>
+ </div>
+ <small id="heightCalNotice">Alturas guardadas en memoria permanente del ESP32. Son micropasos relativos, NO milímetros. Tras reiniciar se conservan los valores, pero deben referenciarse al origen físico antes de usarlos para movimientos automáticos.</small>
 </section>
 <div class="simple-settings">
 <label><input id="motorChecked" type="checkbox"> Conexiones revisadas: 12 V, polaridad, VIO, GND y bobinas</label>
@@ -167,4 +177,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-height-cal-8"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-persistent-9"></script></body></html>
