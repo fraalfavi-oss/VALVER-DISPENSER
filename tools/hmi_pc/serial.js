@@ -129,10 +129,17 @@ function showColdTest(d){
  log('AUTO-CHECK: '+(good?'GPIO locales OK':'FALLO GPIO')+' | conexiones físicas NO verificadas');
 }
 
+function showZHeights(d){
+ for(const axis of [1,2]){
+   const h=d['z'+axis]||{};
+   el('z'+axis+'Position').textContent='Pos. '+(h.position??0);
+   el('z'+axis+'RestValue').textContent=h.rest_set===true?String(h.rest):'—';
+   el('z'+axis+'DispenseValue').textContent=h.dispense_set===true?String(h.dispense):'—';
+ }
+}
 function updateMotorTest(){
- const ratedText=el('motorRated').value.trim(),rated=Number(ratedText);
  const ready=connected&&pingOK&&verified&&!preparingTest&&!trialActive;
- const approved=el('motorChecked').checked&&ratedText!==''&&Number.isInteger(rated)&&rated>=150&&rated<=2000;
+ const approved=el('motorChecked').checked;
  for(const axis of [1,2]){
    el('z'+axis+'Comms').textContent=testReadyUart[axis]?'UART OK':'UART SIN RESPUESTA';
    el('z'+axis+'Comms').style.color=testReadyUart[axis]?'#8bdfb4':'#f1b36e';
@@ -144,6 +151,11 @@ function updateMotorTest(){
  }
  el('motorStop').disabled=!connected;
  el('holdSpeed').disabled=!connected||!verified||preparingTest||trialActive;
+ for(const axis of [1,2]){
+   const active=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld&&testReadyUart[axis];
+   for(const kind of ['Rest','Dispense'])el('saveZ'+axis+kind).disabled=!active;
+   el('clearZ'+axis+'Heights').disabled=!active;
+ }
 
 }
 function stopTrialHeartbeat(){
@@ -154,20 +166,19 @@ function stopTrialHeartbeat(){
 function stopHeldMotor(){
  const wasMoving=preparingTest||trialActive||pressHeld;
  pressHeld=false;heldControlId=null;stopTrialHeartbeat();
- if(wasMoving&&connected)void send('STOP_TEST');
+ if(wasMoving&&connected)void send('STOP_TEST').then(()=>send('GET_Z_HEIGHTS'));
 }
 function startMotorHold(axis,up,e){
  if(e.pointerType==='mouse'&&e.button!==0)return;
- const ratedText=el('motorRated').value.trim(),rated=Number(ratedText);
  if(!connected||!pingOK||!verified||pressHeld||preparingTest||trialActive||!testReadyUart[axis]||
-    !el('motorChecked').checked||ratedText===''||!Number.isInteger(rated)||rated<150||rated>2000)return;
+    !el('motorChecked').checked)return;
  pressHeld=true;heldControlId='motorZ'+axis+(up?'Up':'Down');
  const btn=el(heldControlId);
  btn.setPointerCapture?.(e.pointerId);
  preparingTest=true;pendingPulse={axis,up};armedTestAxis=0;
  el('motorTestState').textContent='Z'+axis+' · verificando UART y corriente antes de mover…';
  updateMotorTest();
- void send('PREPARE_TEST',{axis,rated_ma:rated,confirm:1});
+ void send('PREPARE_TEST',{axis,confirm:1});
 }
 function launchPreparedHold(axis,up){
  if(!pressHeld||!connected||!verified||!el('motorChecked').checked)return;
@@ -225,7 +236,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.7-fast-z';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.8-height-calibration';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -233,7 +244,7 @@ function response(data){
      el('coldFirmware').textContent='OK · BLOQUEO HOLD_MOTOR_TEST';
      el('coldFirmware').style.color='#a7f0c8';
      log('Bloqueo de movimiento confirmado · iniciando autodiagnóstico');
-     send('GET_COLD_CHECK');send('GET_DRIVER_TEST');
+     send('GET_COLD_CHECK');send('GET_DRIVER_TEST');send('GET_Z_HEIGHTS');
      if(coldPollTimer)clearInterval(coldPollTimer);
      coldPollTimer=setInterval(()=>{
        if(connected&&pingOK&&verified&&!closing&&!trialActive&&!preparingTest){void send('GET_COLD_CHECK');void send('GET_DRIVER_TEST');}
@@ -245,6 +256,14 @@ function response(data){
    el('coldResult').textContent='FIRMWARE ANTIGUO: no continuar sin actualizar';
  }
  if(data.cold_check){showColdTest(data.cold_check);}
+ if(data.z_heights)showZHeights(data.z_heights);
+ if(data.height_saved){
+   el('heightCalNotice').textContent='Z'+data.axis+' · '+(data.kind===1?'Reposo':'Dispensación')+
+      ' guardada en '+data.position_steps+' micropasos relativos. Solo sesión actual.';
+ }
+ if(data.height_cleared){
+   el('heightCalNotice').textContent='Z'+data.axis+' · referencias borradas; posición relativa conservada.';
+ }
  if(data.driver_test){
    testReadyUart[1]=data.driver_test.z1_uart===true;
    testReadyUart[2]=data.driver_test.z2_uart===true;
@@ -271,6 +290,7 @@ function response(data){
  if(data.status==='DONE'&&data.reason==='HOLD_TIMEOUT_OR_LINK_LOST'){
    el('rgbPinNote').textContent='Apagado · motor detenido';
    pressHeld=false;heldControlId=null;stopTrialHeartbeat();
+   void send('GET_Z_HEIGHTS');
    el('motorTestState').textContent='Parada por seguridad (10 s o comunicación) · suelta y vuelve a pulsar';
  }
 
@@ -392,7 +412,8 @@ function send(cmd,fields={}){
  if(!connected||!writer)return Promise.resolve();
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
-  'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED']);
+  'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED',
+  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
@@ -413,10 +434,18 @@ el('holdSpeed').onchange=()=>{
  if(!connected||!verified||trialActive||preparingTest)return;
  void send('SET_HOLD_SPEED',{speed_sps:Number(el('holdSpeed').value)});
 };
-for(const id of ['motorRated','motorChecked']){
- const c=el(id);
- c.onchange=()=>{stopHeldMotor();updateMotorTest();};
- if(id==='motorRated')c.oninput=c.onchange;
+el('motorChecked').onchange=()=>{stopHeldMotor();updateMotorTest();};
+for(const axis of [1,2]){
+ for(const [kind,name] of [[1,'Rest'],[2,'Dispense']]){
+   el('saveZ'+axis+name).onclick=()=>{
+     if(!connected||!verified||trialActive||preparingTest||pressHeld||!testReadyUart[axis])return;
+     void send('SAVE_Z_HEIGHT',{axis,kind});
+   };
+ }
+ el('clearZ'+axis+'Heights').onclick=()=>{
+   if(!connected||!verified||trialActive||preparingTest||pressHeld)return;
+   void send('CLEAR_Z_HEIGHTS',{axis});
+ };
 }
 for(const [axis,up,id] of [[1,true,'motorZ1Up'],[1,false,'motorZ1Down'],[2,true,'motorZ2Up'],[2,false,'motorZ2Down']]){
  const btn=el(id);
