@@ -58,6 +58,15 @@ nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286
 .axis-simple strong{font-size:13px;color:#e3f6ff}.axis-status{font-size:10px;color:#e7c47b}
 .axis-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .axis-buttons button{padding:15px 9px;font-size:14px;background:#225a78}
+.height-cal{margin:10px 0 14px;border:1px solid #355b78;background:#10283b;padding:10px;border-radius:8px}
+.height-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;color:#d5edfd;font-size:12px;margin-bottom:8px}
+.height-heading small{color:#a5c1d1;font-weight:400}
+.height-row{display:grid;grid-template-columns:26px minmax(56px,1fr) minmax(99px,1.2fr) minmax(45px,.6fr) minmax(116px,1.4fr) minmax(45px,.6fr) 28px;align-items:center;gap:5px;margin-bottom:6px;font-size:11px}
+.height-row button{padding:7px 4px;font-size:10px;border-radius:6px;background:#225b78;white-space:nowrap}
+.height-row button.height-clear{background:#5c3441;font-size:14px;padding:5px 3px}
+.height-row>span{color:#a9d6ef}
+.height-cal>small{display:block;font-size:10px;line-height:1.4;color:#a0bfce;padding-top:4px}
+@media(max-width:750px){.height-row{grid-template-columns:24px 1fr 1fr 42px}.height-row #z1DispenseValue,.height-row #z2DispenseValue{grid-column:auto}}
 .simple-settings{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0;font-size:11px}
 .simple-settings label{font-size:11px}.simple-settings input[type=number]{width:115px}
 .motor-panel #motorStop{font-size:13px;padding:12px 20px;background:#922b46}
@@ -108,13 +117,28 @@ body.cold-ui #jogHint{display:none!important}
  <span class="rgb-dot rgb-red"></span> Z2: rojos
  <small id="rgbPinNote">LED integrado automático · apagado cuando ambos motores están detenidos</small>
 </div>
+<section class="height-cal" aria-label="Calibración de alturas Z">
+ <div class="height-heading"><strong>CALIBRAR ALTURAS</strong><small>Sube o baja, suelta y guarda la posición</small></div>
+ <div class="height-row">
+   <strong>Z1</strong><span id="z1Position">Pos. 0</span>
+   <button id="saveZ1Rest" disabled>Guardar reposo</button><span id="z1RestValue">—</span>
+   <button id="saveZ1Dispense" disabled>Guardar dispensación</button><span id="z1DispenseValue">—</span>
+   <button id="clearZ1Heights" class="height-clear" disabled title="Borrar alturas Z1">×</button>
+ </div>
+ <div class="height-row">
+   <strong>Z2</strong><span id="z2Position">Pos. 0</span>
+   <button id="saveZ2Rest" disabled>Guardar reposo</button><span id="z2RestValue">—</span>
+   <button id="saveZ2Dispense" disabled>Guardar dispensación</button><span id="z2DispenseValue">—</span>
+   <button id="clearZ2Heights" class="height-clear" disabled title="Borrar alturas Z2">×</button>
+ </div>
+ <small id="heightCalNotice">Valores relativos en micropasos, NO en mm. Sin sensor de origen, se pierden al reiniciar; no hay movimiento automático.</small>
+</section>
 <div class="simple-settings">
-<label for="motorRated">Corriente nominal REAL por fase (mA): <input id="motorRated" type="number" min="150" max="2000" step="10" placeholder="Según etiqueta"></label>
-<label><input id="motorChecked" type="checkbox"> Verificados 12 V, polaridad, VIO, GND, bobinas y corriente nominal</label>
+<label><input id="motorChecked" type="checkbox"> Conexiones revisadas: 12 V, polaridad, VIO, GND y bobinas</label>
 </div>
 <div class="motor-row"><button id="motorStop" class="stop" type="button">■ PARADA</button>
 <span id="motorTestState">UART y corriente pendientes · motores bloqueados</span></div>
-<p class="simple-foot">Mantén pulsado para mover; suelta para detener. Parada automática si se pierde la comunicación o a los 10 segundos. Corriente de movimiento: 90% de la nominal introducida, máximo 800 mA RMS. El dato debe ser el de la etiqueta/ficha del motor, no el límite de la fuente. La fuente a 15 mA no sirve para moverlo.</p>
+<p class="simple-foot">Mantén pulsado para mover; suelta para detener. Parada automática si se pierde la comunicación o a los 10 segundos. Corriente regulada internamente a 150 mA RMS hasta verificar el motor. La fuente a 15 mA no sirve para moverlo.</p>
 </section>
 <details class="diag-fold"><summary>Autodiagnóstico de conexiones (ver resultados)</summary>
 <section class="cold-panel" id="coldPanel" aria-label="Autodiagnóstico USB seguro">
@@ -143,4 +167,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-fast-z-7"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-height-cal-8"></script></body></html>
