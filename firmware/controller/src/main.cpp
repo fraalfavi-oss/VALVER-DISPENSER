@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <TMCStepper.h>
 #include <Adafruit_NeoPixel.h>
+#include <Preferences.h>
 #include "driver/ledc.h"
 #include "config/SystemConfig.h"
 #include "config/HardwareConfig.h"
@@ -14,19 +15,16 @@ namespace {
 // USB-only cold commissioning. Neither motor movement nor TMC UART is permitted.
 // A reviewed firmware change is required before any powered tests.
 constexpr bool COLD_INSPECTION_ONLY=false; // UART diagnostic only; legacy jog forbidden
-// Use only the onboard addressable RGB LED. No user pin selection and no extra wiring.
-// Respect the Arduino board definition when available (normally GPIO48).
-#if defined(RGB_BUILTIN)
-constexpr uint8_t RGB_INTERNAL_PIN=RGB_BUILTIN;
-#else
-constexpr uint8_t RGB_INTERNAL_PIN=48;
-#endif
+// Built-in RGB WS2812: ESP32-S3 DevKitC-1 boards use GPIO48 or GPIO38.
+// Drive both UNUSED candidate pins automatically: zero external wires/config.
+// GPIO38 and GPIO48 must remain free of other peripherals on this project.
 uint8_t rgbDisplayedAxis=255,rgbFrame=0;
 uint32_t rgbLastMs=0;
-Adafruit_NeoPixel rgbLed(1,RGB_INTERNAL_PIN,NEO_GRB+NEO_KHZ800);
+Adafruit_NeoPixel rgb48(1,48,NEO_GRB+NEO_KHZ800);
+Adafruit_NeoPixel rgb38(1,38,NEO_GRB+NEO_KHZ800);
 void rgbOff(){
- rgbLed.clear();
- rgbLed.show();
+ rgb48.clear();rgb38.clear();
+ rgb48.show();rgb38.show();
  rgbDisplayedAxis=0;
 }
 constexpr uint8_t Z1_STEP=4,Z1_DIR=5,Z1_EN=6;
@@ -200,9 +198,11 @@ struct Trial {bool active=false,high=false,up=false;uint8_t axis=0;uint32_t coun
 // positions between power cycles or use them for autonomous movements.
 struct ZHeights {int32_t position=0,rest=0,dispense=0;bool restSet=false,dispenseSet=false;};
 ZHeights heights[3];
+Preferences savedPrefs;
+bool flashReady=false;
 void replyZHeights(unsigned long id){
- Serial.printf(R"json({"id":%lu,"status":"OK","z_heights":{"unit":"microsteps","referenced":false,"session_only":true,"z1":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld},"z2":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld}}})json" "\n",
- id,(long)heights[1].position,heights[1].restSet?"true":"false",(long)heights[1].rest,
+ Serial.printf(R"json({"id":%lu,"status":"OK","z_heights":{"unit":"microsteps","referenced":false,"session_only":false,"stored_unreferenced":true,"flash_ready":%s,"z1":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld},"z2":{"position":%ld,"rest_set":%s,"rest":%ld,"dispense_set":%s,"dispense":%ld}}})json" "\n",
+ id,flashReady?"true":"false",(long)heights[1].position,heights[1].restSet?"true":"false",(long)heights[1].rest,
  heights[1].dispenseSet?"true":"false",(long)heights[1].dispense,
  (long)heights[2].position,heights[2].restSet?"true":"false",(long)heights[2].rest,
  heights[2].dispenseSet?"true":"false",(long)heights[2].dispense);
@@ -218,6 +218,46 @@ constexpr uint16_t HOLD_SPEED_MIN_SPS=80,HOLD_SPEED_MAX_SPS=8000,HOLD_START_SPS=
 constexpr float HOLD_ACCEL_SPS2=6000.0f;
 uint16_t holdTargetSps=1600; // Default is useful travel speed; HMI slider can select up to 8000.
 constexpr uint32_t HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
+struct SavedZSettings{
+ uint32_t magic=0x56414C56; // VALV
+ uint16_t version=1,speed=1600;
+ int32_t z1Rest=0,z1Dispense=0,z2Rest=0,z2Dispense=0;
+ uint8_t z1Flags=0,z2Flags=0;
+};
+bool savePersistentSettings(){
+ if(!flashReady)return false;
+ SavedZSettings data{};
+ data.speed=holdTargetSps;
+ data.z1Rest=heights[1].rest;data.z1Dispense=heights[1].dispense;
+ data.z2Rest=heights[2].rest;data.z2Dispense=heights[2].dispense;
+ data.z1Flags=(heights[1].restSet?1:0)|(heights[1].dispenseSet?2:0);
+ data.z2Flags=(heights[2].restSet?1:0)|(heights[2].dispenseSet?2:0);
+ return savedPrefs.putBytes("cfg",&data,sizeof(data))==sizeof(data);
+}
+void loadPersistentSettings(){
+ flashReady=savedPrefs.begin("valver_z",false);
+ if(!flashReady || savedPrefs.getBytesLength("cfg")!=sizeof(SavedZSettings))return;
+ SavedZSettings data{};
+ if(savedPrefs.getBytes("cfg",&data,sizeof(data))!=sizeof(data)||
+    data.magic!=0x56414C56||data.version!=1||
+    data.speed<HOLD_SPEED_MIN_SPS||data.speed>HOLD_SPEED_MAX_SPS)return;
+ holdTargetSps=data.speed;
+ heights[1].rest=data.z1Rest;heights[1].dispense=data.z1Dispense;
+ heights[2].rest=data.z2Rest;heights[2].dispense=data.z2Dispense;
+ heights[1].restSet=(data.z1Flags&1)!=0;heights[1].dispenseSet=(data.z1Flags&2)!=0;
+ heights[2].restSet=(data.z2Flags&1)!=0;heights[2].dispenseSet=(data.z2Flags&2)!=0;
+ // Deliberately NEVER restore motor position: no homing reference after restart.
+ heights[1].position=0;heights[2].position=0;
+}
+bool readSignedZValue(const char* json,long &value){
+ const char *p=strstr(json,"\"value\"");
+ if(!p || !(p=strchr(p+7,':')))return false;
+ ++p;while(*p==' '||*p=='\t')++p;
+ if(!((*p>='0'&&*p<='9')||*p=='-'))return false;
+ char *end=nullptr;value=strtol(p,&end,10);
+ if(end==p||!(*end==','||*end=='}'||*end==' '))return false;
+ return value>=-2000000L&&value<=2000000L;
+}
 void abortTrial(){
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
  disableDrivers();
@@ -233,15 +273,17 @@ void serviceRgb(){
  if(axis==1){
    static const uint8_t g[6]={1,8,20,34,20,8};
    static const uint8_t b[6]={50,78,112,165,125,82};
-   rgbLed.setPixelColor(0,0,g[rgbFrame],b[rgbFrame]);
+   rgb48.setPixelColor(0,0,g[rgbFrame],b[rgbFrame]);
+   rgb38.setPixelColor(0,0,g[rgbFrame],b[rgbFrame]);
  }else if(axis==2){
    static const uint8_t r[6]={62,95,135,175,125,82};
    static const uint8_t g[6]={0,0,3,8,3,0};
-   rgbLed.setPixelColor(0,r[rgbFrame],g[rgbFrame],0);
+   rgb48.setPixelColor(0,r[rgbFrame],g[rgbFrame],0);
+   rgb38.setPixelColor(0,r[rgbFrame],g[rgbFrame],0);
  }else{
-   rgbLed.clear();
+   rgb48.clear();rgb38.clear();
  }
- rgbLed.show();
+ rgb48.show();rgb38.show();
 }
 void serviceTrial(){
  if(!trial.active)return;
@@ -279,7 +321,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -314,6 +356,7 @@ void dispatch(const char* data) {
    ZHeights &h=heights[axis];
    if(kind==1){h.rest=h.position;h.restSet=true;}
    else {h.dispense=h.position;h.dispenseSet=true;}
+   if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
    Serial.printf(R"json({"id":%lu,"status":"OK","height_saved":true,"axis":%lu,"kind":%lu,"position_steps":%ld})json" "\n",
      id,axis,kind,(long)h.position);
    replyZHeights(id);
@@ -322,7 +365,20 @@ void dispatch(const char* data) {
    unsigned long axis=0;
    if(!readUIntField(data,"axis",axis)||axis<1||axis>2){replyError(id,"INVALID_HEIGHT_SELECTION");return;}
    heights[axis].restSet=false;heights[axis].dispenseSet=false;
+   if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
    Serial.printf(R"json({"id":%lu,"status":"OK","height_cleared":true,"axis":%lu})json" "\n",id,axis);
+   replyZHeights(id);
+ }else if(strcmp(cmd,"SET_SHARED_HEIGHT")==0){
+   if(trial.active){replyError(id,"STOP_BEFORE_CALIBRATION");return;}
+   unsigned long kind=0;long value=0;
+   if(!readUIntField(data,"kind",kind)||kind<1||kind>2||
+      !readSignedZValue(data,value)){replyError(id,"INVALID_SHARED_HEIGHT");return;}
+   for(uint8_t axis=1;axis<=2;axis++){
+     if(kind==1){heights[axis].rest=(int32_t)value;heights[axis].restSet=true;}
+     else {heights[axis].dispense=(int32_t)value;heights[axis].dispenseSet=true;}
+   }
+   if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
+   Serial.printf(R"json({"id":%lu,"status":"OK","shared_height_saved":true,"kind":%lu,"value":%ld})json" "\n",id,kind,value);
    replyZHeights(id);
  }else if(strcmp(cmd,"SET_HOLD_SPEED")==0){
    if(trial.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
@@ -332,6 +388,7 @@ void dispatch(const char* data) {
      replyError(id,"INVALID_HOLD_SPEED");return;
    }
    holdTargetSps=(uint16_t)requested;
+   if(!savePersistentSettings()){replyError(id,"FLASH_SAVE_FAILED");return;}
    Serial.printf(R"json({"id":%lu,"status":"OK","hold_speed_sps":%u,"hold_min_sps":%u,"hold_max_sps":%u})json" "\n",
      id,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS);
  }else if(strcmp(cmd,"GET_DRIVER_TEST")==0){
@@ -393,7 +450,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.8-height-calibration\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.9-persistent-height-rgb\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
@@ -555,9 +612,10 @@ void setup(){
    stepClockReady=false; // no PWM STEP timer configured
  }
  disableDrivers();
- rgbLed.begin();
- rgbLed.setBrightness(55);
+ rgb48.begin();rgb38.begin();
+ rgb48.setBrightness(75);rgb38.setBrightness(75);
  rgbOff();
+ loadPersistentSettings();
  Serial.begin(valver::kDefaultBaudRate);
 }
 void loop(){
