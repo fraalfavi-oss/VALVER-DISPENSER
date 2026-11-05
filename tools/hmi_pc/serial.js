@@ -225,7 +225,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.6-rated-current';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.7-fast-z';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -275,10 +275,10 @@ function response(data){
  }
 
  if(Number.isFinite(data.hold_speed_sps)){
-   const speed=Math.max(80,Math.min(1600,Math.round(Number(data.hold_speed_sps))));
+   const speed=Math.max(80,Math.min(8000,Math.round(Number(data.hold_speed_sps))));
    el('holdSpeed').value=String(speed);
    el('holdSpeedValue').textContent=String(speed);
-   el('holdSpeedInfo').textContent='Velocidad aplicada: '+speed+' pasos/s · aceleración suave';
+   el('holdSpeedInfo').textContent='Velocidad aplicada: '+speed+' micropasos/s · aceleración suave';
  }
  if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){
    el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);
@@ -407,7 +407,7 @@ el('connect').onclick=()=>void connect();
 el('disconnect').onclick=disconnect;
 el('holdSpeed').oninput=()=>{
  el('holdSpeedValue').textContent=el('holdSpeed').value;
- el('holdSpeedInfo').textContent='Velocidad seleccionada: '+el('holdSpeed').value+' pasos/s';
+ el('holdSpeedInfo').textContent='Velocidad seleccionada: '+el('holdSpeed').value+' micropasos/s';
 };
 el('holdSpeed').onchange=()=>{
  if(!connected||!verified||trialActive||preparingTest)return;
