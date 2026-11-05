@@ -3,6 +3,79 @@ const el=id=>document.getElementById(id);
 const heightPositions={1:0,2:0};
 const heightFlags={1:{referenced:false,restSet:false,dispenseSet:false},2:{referenced:false,restSet:false,dispenseSet:false}};
 let autoActive=false;
+// Two-step touchscreen calibration for each selected Z axis.
+// Sequence: manually reach DISPENSATION -> OK, then REST -> OK.
+let wizardMode='z1', wizardAxes=[1], wizardIndex=0;
+let wizardWorking=false,wizardSaving=false,wizardBeginPending=0;
+function wizardCurrentStep(){
+ if(!wizardWorking||wizardIndex>=wizardAxes.length*2)return null;
+ return {axis:wizardAxes[Math.floor(wizardIndex/2)],kind:(wizardIndex%2===0?2:1)};
+}
+function wizardMessage(text){el('wizardNote').textContent=text;}
+function wizardSetMode(mode){
+ if(wizardWorking||wizardBeginPending)return;
+ wizardMode=mode;
+ for(const [name,id] of [['z1','wizardSelectZ1'],['z2','wizardSelectZ2'],['both','wizardSelectBoth']]){
+  el(id).classList.toggle('chosen',mode===name);
+ }
+}
+function wizardRefreshButtons(){
+ const step=wizardCurrentStep(),allow=connected&&verified&&pingOK&&el('motorChecked').checked;
+ el('wizardBegin').disabled=!allow||wizardWorking||wizardBeginPending>0||trialActive||preparingTest||pressHeld;
+ for(const [id,dir] of [['wizardUp','Up'],['wizardDown','Down']]){
+  const activeId=heldControlId===id;
+  el(id).disabled=(!allow||!step||wizardSaving||preparingTest||trialActive||!testReadyUart[step?.axis])&&!(pressHeld&&activeId);
+ }
+ el('wizardConfirm').disabled=!allow||!step||wizardSaving||trialActive||preparingTest||pressHeld||!heldAxes.has(step.axis);
+ for(const id of ['wizardSelectZ1','wizardSelectZ2','wizardSelectBoth'])el(id).disabled=wizardWorking||wizardBeginPending>0;
+}
+function wizardShowStep(){
+ const step=wizardCurrentStep();
+ if(!step){
+  wizardWorking=false;wizardSaving=false;wizardBeginPending=0;
+  el('wizardPick').hidden=true;el('wizardWork').hidden=true;el('wizardComplete').hidden=false;
+  el('wizardDoneText').textContent='Posiciones de '+wizardAxes.map(a=>'Z'+a).join(' y ')+' guardadas en el ESP32. Abre CONTROL Z para usar IR A DISPENSACIÓN o IR A REPOSO.';
+  wizardMessage('Configuración finalizada. Las alturas ya están guardadas.');
+  void send('GET_Z_HEIGHTS');
+  wizardRefreshButtons();
+  return;
+ }
+ el('wizardPick').hidden=true;el('wizardWork').hidden=false;el('wizardComplete').hidden=true;
+ el('wizardTitle').textContent='Z'+step.axis+' · '+(step.kind===2?'DISPENSACIÓN':'REPOSO');
+ el('wizardCount').textContent='Paso '+(wizardIndex+1)+' de '+(wizardAxes.length*2);
+ el('wizardInstruction').textContent='Con SUBIR o BAJAR, lleva la aguja Z'+step.axis+' hasta '+(step.kind===2?'la altura de DISPENSACIÓN':'la altura de REPOSO')+'. Suelta el botón y pulsa OK.';
+ wizardMessage('La posición se guarda al pulsar OK. No hace falta introducir números.');
+ wizardRefreshButtons();
+}
+function wizardBegin(){
+ if(wizardWorking||wizardBeginPending||!connected||!verified||trialActive||preparingTest||pressHeld||!el('motorChecked').checked)return;
+ wizardAxes=wizardMode==='both'?[1,2]:[wizardMode==='z2'?2:1];
+ wizardIndex=0;wizardSaving=false;wizardBeginPending=wizardAxes.length;
+ el('wizardComplete').hidden=true;el('wizardWork').hidden=true;
+ wizardMessage('Preparando configuración de '+wizardAxes.map(a=>'Z'+a).join(' y ')+'…');
+ wizardRefreshButtons();
+ for(const axis of wizardAxes)void send('BEGIN_Z_CALIBRATION',{axis});
+}
+function wizardConfirmPosition(){
+ const step=wizardCurrentStep();
+ if(!step||wizardSaving||trialActive||preparingTest||pressHeld||!connected||!verified)return;
+ if(!heldAxes.has(step.axis)){
+  wizardMessage('Mueve un poco Z'+step.axis+' con SUBIR o BAJAR, suelta y luego pulsa OK.');
+  return;
+ }
+ wizardSaving=true;
+ wizardMessage('Guardando '+(step.kind===2?'DISPENSACIÓN':'REPOSO')+' de Z'+step.axis+'…');
+ wizardRefreshButtons();
+ void send('SAVE_Z_HEIGHT',{axis:step.axis,kind:step.kind});
+}
+function wizardCancel(){
+ if(pressHeld||trialActive||preparingTest)stopHeldMotor(false);
+ wizardWorking=false;wizardSaving=false;wizardBeginPending=0;
+ el('wizardWork').hidden=true;el('wizardComplete').hidden=true;el('wizardPick').hidden=false;
+ wizardMessage('Puedes empezar otra vez. Una calibración incompleta no habilita movimientos automáticos.');
+ wizardRefreshButtons();
+}
+
 const heldAxes=new Set();
 let idleHoldBeatTimer=null;
 function updateHoldStatus(){
@@ -234,6 +307,7 @@ function updateMotorTest(){
  el('sharedRest').disabled=!sharedReady;
  el('sharedDispense').disabled=!sharedReady;
  for(const axis of [1,2])el('copyZ'+axis+'Height').disabled=!sharedReady;
+ wizardRefreshButtons();
 
 }
 function stopTrialHeartbeat(){
@@ -348,7 +422,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.1.1-simple-heights';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.2.0-height-wizard';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -375,6 +449,18 @@ function response(data){
    showZHeights(data.z_heights);
    if(data.z_heights.flash_ready===false)
      el('heightCalNotice').textContent='ERROR: memoria permanente no disponible; no se pueden guardar alturas ni velocidad.';
+ }
+ if(data.calibration_begun===true && wizardBeginPending>0){
+   wizardBeginPending--;
+   if(wizardBeginPending===0){wizardWorking=true;wizardShowStep();}
+   else wizardRefreshButtons();
+ }
+ if(data.height_saved && wizardWorking && wizardSaving){
+   const step=wizardCurrentStep();
+   if(step&&Number(data.axis)===step.axis&&Number(data.kind)===step.kind){
+     wizardSaving=false;wizardIndex++;
+     wizardShowStep();
+   }
  }
  if(data.height_saved){
    el('heightCalNotice').textContent='Z'+data.axis+' · '+(data.kind===1?'REPOSO':'DISPENSACIÓN')+
@@ -493,6 +579,10 @@ function response(data){
  if(typeof data.stall_enabled==='boolean'&&data.axis)stallData['z'+data.axis+'_enabled']=data.stall_enabled;
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){
+   if(wizardSaving||wizardBeginPending){
+     wizardMessage('No se ha guardado: '+(data.code||'error')+'. Revisa la conexión y repite.');
+     wizardSaving=false;wizardBeginPending=0;wizardRefreshButtons();
+   }
    if(trialActive||preparingTest)void send('STOP_TEST');
    el('rgbPinNote').textContent='Apagado · revisa el error';
    pressHeld=false;heldControlId=null;stopTrialHeartbeat();
@@ -532,7 +622,10 @@ async function connect(authorizedPort=null){
   port=authorizedPort||await navigator.serial.requestPort();
   await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
-  connected=true;heldAxes.clear();updateHoldStatus();pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;pressHeld=false;heldControlId=null;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
+  connected=true;heldAxes.clear();updateHoldStatus();
+ wizardWorking=false;wizardSaving=false;wizardBeginPending=0;
+ el('wizardWork').hidden=true;el('wizardComplete').hidden=true;el('wizardPick').hidden=false;
+ pingOK=false;verified=false;coldMode=true;latestCold=null;armedTestAxis=0;trialActive=false;preparingTest=false;pendingPulse=null;pressHeld=false;heldControlId=null;testReadyUart={1:false,2:false};selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
   el('coldUsb').textContent='COM ABIERTO · ESPERANDO PONG';
   el('coldFirmware').textContent='PENDIENTE';
   el('coldGpio').textContent='PENDIENTE';
@@ -575,7 +668,7 @@ function send(cmd,fields={}){
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
   'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED',
-  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT','HOLD_STOP','HOLD_IDLE_HEARTBEAT','REFERENCE_Z_REST','GO_TO_Z_HEIGHT']);
+  'GET_Z_HEIGHTS','SAVE_Z_HEIGHT','CLEAR_Z_HEIGHTS','SET_SHARED_HEIGHT','HOLD_STOP','HOLD_IDLE_HEARTBEAT','REFERENCE_Z_REST','GO_TO_Z_HEIGHT','BEGIN_Z_CALIBRATION']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
@@ -597,6 +690,14 @@ el('holdSpeed').onchange=()=>{
  void send('SET_HOLD_SPEED',{speed_sps:Number(el('holdSpeed').value)});
 };
 el('motorChecked').onchange=()=>{stopHeldMotor();updateMotorTest();};
+el('wizardSelectZ1').onclick=()=>wizardSetMode('z1');
+el('wizardSelectZ2').onclick=()=>wizardSetMode('z2');
+el('wizardSelectBoth').onclick=()=>wizardSetMode('both');
+el('wizardBegin').onclick=wizardBegin;
+el('wizardConfirm').onclick=wizardConfirmPosition;
+el('wizardCancel').onclick=wizardCancel;
+el('wizardRestart').onclick=wizardCancel;
+el('wizardGoControl').onclick=()=>page('home');
 for(const axis of [1,2]){
  el('referenceZ'+axis+'Rest').onclick=()=>{
    if(!connected||!verified||trialActive||preparingTest||!heldAxes.has(axis)||!heightFlags[axis].restSet)return;
@@ -660,6 +761,16 @@ for(const [axis,up,id] of [
  btn.addEventListener('pointerdown',e=>startMotorHold(axis,up,e));
  btn.addEventListener('pointerup',()=>stopHeldMotor(true));
  btn.addEventListener('pointercancel',stopHeldMotor);
+ btn.addEventListener('lostpointercapture',()=>{if(pressHeld||trialActive||preparingTest)stopHeldMotor(false);});
+}
+for(const [up,id] of [[true,'wizardUp'],[false,'wizardDown']]){
+ const btn=el(id);
+ btn.addEventListener('pointerdown',e=>{
+   const step=wizardCurrentStep();
+   if(step&&!wizardSaving)startMotorHold(step.axis,up,e);
+ });
+ btn.addEventListener('pointerup',()=>stopHeldMotor(true));
+ btn.addEventListener('pointercancel',()=>stopHeldMotor(false));
  btn.addEventListener('lostpointercapture',()=>{if(pressHeld||trialActive||preparingTest)stopHeldMotor(false);});
 }
 el('motorStop').onclick=()=>{
