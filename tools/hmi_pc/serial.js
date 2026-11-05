@@ -1,5 +1,54 @@
 let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false,armedTestAxis=0,trialActive=false,trialBeatTimer=null,testReadyUart={1:false,2:false},preparingTest=false,pendingPulse=null,pressHeld=false,heldControlId=null;
 const el=id=>document.getElementById(id);
+const heightPositions={1:0,2:0};
+let keypadDraft='0';
+function safeTouchHeight(v){
+ const n=Number(v);
+ return Number.isSafeInteger(n)&&n>=-2000000&&n<=2000000?n:null;
+}
+function setTouchHeight(v){
+ const n=safeTouchHeight(v);
+ if(n===null)return false;
+ el('sharedHeightValue').value=String(n);
+ return true;
+}
+function refreshKeypad(){
+ el('heightKeypadDisplay').textContent=keypadDraft;
+ const n=safeTouchHeight(keypadDraft);
+ el('heightKeypadError').textContent=n===null?'Altura fuera de ±2.000.000 micropasos':'';
+ el('keypadApply').disabled=n===null;
+}
+function openHeightKeypad(){
+ if(trialActive||preparingTest||pressHeld)return;
+ keypadDraft=String(safeTouchHeight(el('sharedHeightValue').value)??0);
+ el('heightKeypad').hidden=false;
+ document.body.classList.add('keypad-open');
+ refreshKeypad();
+}
+function closeHeightKeypad(){
+ el('heightKeypad').hidden=true;
+ document.body.classList.remove('keypad-open');
+}
+function keypadInput(key){
+ if(key==='clear')keypadDraft='0';
+ else if(key==='back'){
+  keypadDraft=keypadDraft.slice(0,-1);
+  if(keypadDraft===''||keypadDraft==='-')keypadDraft='0';
+ }else if(key==='sign'){
+  keypadDraft=keypadDraft.startsWith('-')?keypadDraft.slice(1):'-'+keypadDraft;
+ }else if(key==='stepdown'||key==='stepup'){
+  const n=safeTouchHeight(keypadDraft);
+  if(n!==null)keypadDraft=String(Math.max(-2000000,Math.min(2000000,n+(key==='stepup'?100:-100))));
+ }else if(/^\d{1,2}$/.test(key)){
+  const digits=keypadDraft.startsWith('-')?keypadDraft.slice(1):keypadDraft;
+  if(digits.length<8){
+   const neg=keypadDraft.startsWith('-');
+   const next=(digits==='0'?'':digits)+key;
+   keypadDraft=(neg?'-':'')+next;
+  }
+ }
+ refreshKeypad();
+}
 const diagSamples={1:[],2:[]};
 const diagInfo={1:null,2:null};
 function diagSummary(axis){
@@ -132,6 +181,7 @@ function showColdTest(d){
 function showZHeights(d){
  for(const axis of [1,2]){
    const h=d['z'+axis]||{};
+   heightPositions[axis]=Number(h.position??0);
    el('z'+axis+'Position').textContent='Pos. '+(h.position??0);
    el('z'+axis+'RestValue').textContent=h.rest_set===true?String(h.rest):'—';
    el('z'+axis+'DispenseValue').textContent=h.dispense_set===true?String(h.dispense):'—';
@@ -159,6 +209,7 @@ function updateMotorTest(){
  const sharedReady=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld;
  el('sharedRest').disabled=!sharedReady;
  el('sharedDispense').disabled=!sharedReady;
+ for(const axis of [1,2])el('copyZ'+axis+'Height').disabled=!sharedReady;
 
 }
 function stopTrialHeartbeat(){
@@ -240,7 +291,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.9-persistent-height-rgb';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 1.0.0-touch-hold';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -447,6 +498,27 @@ el('holdSpeed').onchange=()=>{
  void send('SET_HOLD_SPEED',{speed_sps:Number(el('holdSpeed').value)});
 };
 el('motorChecked').onchange=()=>{stopHeldMotor();updateMotorTest();};
+el('sharedHeightValue').addEventListener('click',openHeightKeypad);
+el('sharedHeightValue').addEventListener('focus',()=>el('sharedHeightValue').blur());
+for(const b of document.querySelectorAll('#heightKeypad [data-key]')){
+ b.addEventListener('click',()=>keypadInput(b.dataset.key));
+}
+el('keypadClose').onclick=closeHeightKeypad;
+el('keypadCancel').onclick=closeHeightKeypad;
+el('keypadApply').onclick=()=>{
+ if(setTouchHeight(keypadDraft))closeHeightKeypad();
+};
+for(const [id,delta] of [['heightMinus100',-100],['heightMinus10',-10],['heightPlus10',10],['heightPlus100',100]]){
+ el(id).onclick=()=>setTouchHeight(Math.max(-2000000,Math.min(2000000,Number(el('sharedHeightValue').value)+delta)));
+}
+for(const axis of [1,2]){
+ el('copyZ'+axis+'Height').onclick=()=>{
+  if(trialActive||preparingTest||pressHeld)return;
+  setTouchHeight(heightPositions[axis]);
+  el('heightCalNotice').textContent='Altura Z'+axis+' copiada. Pulsa guardar reposo o dispensación para ambos motores.';
+ };
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!el('heightKeypad').hidden)closeHeightKeypad();});
 for(const [kind,id] of [[1,'sharedRest'],[2,'sharedDispense']]){
  el(id).onclick=()=>{
    if(!connected||!verified||trialActive||preparingTest||pressHeld)return;
