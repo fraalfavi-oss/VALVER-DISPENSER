@@ -228,10 +228,11 @@ function stopTrialHeartbeat(){
 }
 function stopHeldMotor(park=false){
  const moving=preparingTest||trialActive||pressHeld;
+ const hadHold=heldAxes.size>0;
  const axis=armedTestAxis;
  const parkAllowed=park===true&&trialActive&&axis>0;
  pressHeld=false;heldControlId=null;stopTrialHeartbeat();
- if(moving&&connected){
+ if((moving||(!park&&hadHold))&&connected){
    if(parkAllowed){
      heldAxes.add(axis);updateHoldStatus();
      void send('HOLD_STOP').then(()=>send('GET_Z_HEIGHTS'));
@@ -595,7 +596,7 @@ for(const [axis,up,id] of [[1,true,'motorZ1Up'],[1,false,'motorZ1Down'],[2,true,
  btn.addEventListener('pointerdown',e=>startMotorHold(axis,up,e));
  btn.addEventListener('pointerup',()=>stopHeldMotor(true));
  btn.addEventListener('pointercancel',stopHeldMotor);
- btn.addEventListener('lostpointercapture',stopHeldMotor);
+ btn.addEventListener('lostpointercapture',()=>{if(pressHeld||trialActive||preparingTest)stopHeldMotor(false);});
 }
 el('motorStop').onclick=()=>{
  stopHeldMotor(false);heldAxes.clear();updateHoldStatus();
