@@ -279,7 +279,15 @@ void abortTrial(){
 void parkTrial(){
  if(!trial.active)return;
  const uint8_t axis=trial.axis;
- digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
+ // STEP rising edge may already have been accepted by TMC2209.
+ // Account for this last complete pulse when releasing a held button.
+ if(trial.high){
+   digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
+   trial.count++;
+   heights[axis].position+=trial.up?1:-1;
+ }else{
+   digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
+ }
  trial.active=false;trial.high=false;trial.automatic=false;
  holdingAxis[axis]=true;
  holdIdleHeartbeatMs=millis();
