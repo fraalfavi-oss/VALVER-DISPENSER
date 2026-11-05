@@ -276,7 +276,8 @@ function showZHeights(d){
  for(const axis of [1,2]){
    const h=d['z'+axis]||{};
    heightPositions[axis]=Number(h.position??0);
-   heightFlags[axis]={referenced:h.referenced===true,restSet:h.rest_set===true,dispenseSet:h.dispense_set===true};
+   heightFlags[axis]={referenced:h.referenced===true,restSet:h.rest_set===true,dispenseSet:h.dispense_set===true,
+     rest:Number(h.rest??0),dispense:Number(h.dispense??0)};
    const ref=el('z'+axis+'RefState');
    const flags=heightFlags[axis];
    ref.textContent=flags.referenced?'ALTURAS LISTAS':(!flags.restSet?'MARCA REPOSO Y DISPENSACIÓN':
@@ -310,7 +311,10 @@ function updateMotorTest(){
    el('referenceZ'+axis+'Rest').disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].restSet&&!heightFlags[axis].referenced);
    el('referenceZ'+axis+'Rest').hidden=heightFlags[axis].referenced||!heightFlags[axis].restSet;
    for(const [kind,label] of [['restSet','Rest'],['dispenseSet','Dispense']]){
-     el('gotoZ'+axis+label).disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].referenced&&heightFlags[axis][kind]);
+     const other=axis===1?2:1;
+     const otherReady=heightFlags[other].referenced&&heightFlags[other].restSet&&heldAxes.has(other);
+     el('gotoZ'+axis+label).disabled=!(active&&heldAxes.has(axis)&&heightFlags[axis].referenced&&heightFlags[axis][kind]&&
+       (label==='Rest'||otherReady));
    }
  }
  const sharedReady=connected&&verified&&!trialActive&&!preparingTest&&!pressHeld;
@@ -327,6 +331,7 @@ function stopTrialHeartbeat(){
  updateMotorTest();
 }
 function stopHeldMotor(park=false){
+ if(!park)dispenseSequence=null;
  const moving=preparingTest||trialActive||pressHeld;
  const hadHold=heldAxes.size>0;
  const axis=armedTestAxis;
@@ -345,23 +350,36 @@ function stopHeldMotor(park=false){
  }
  if(moving)el('rgbPinNote').textContent='LED apagado · sin movimiento';
 }
-function startAutoHeight(axis,kind){
- if(!connected||!verified||trialActive||preparingTest||pressHeld||!el('motorChecked').checked||
-    !heldAxes.has(axis)||!heightFlags[axis].referenced||
-    !(kind===1?heightFlags[axis].restSet:heightFlags[axis].dispenseSet))return;
- const to=kind===1?'REPOSO':'DISPENSACIÓN';
- // Direct one-touch move. Firmware retains max distance, current safety and watchdog.
+function launchAutoMove(axis,kind){
  autoActive=true;trialActive=true;armedTestAxis=axis;
  heldAxes.delete(axis);updateHoldStatus();
- el('motorTestState').textContent='Z'+axis+' · moviendo automáticamente a '+to+'…';
+ el('motorTestState').textContent='Z'+axis+' · '+(kind===1?'a REPOSO':'a DISPENSACIÓN')+' a velocidad configurada…';
  updateMotorTest();
  void send('GO_TO_Z_HEIGHT',{axis,kind,confirm:1});
- void send('HOLD_HEARTBEAT');
  if(trialBeatTimer)clearInterval(trialBeatTimer);
  trialBeatTimer=setInterval(()=>{
    if(connected&&verified&&trialActive&&autoActive&&!document.hidden)void send('HOLD_HEARTBEAT');
    else if(autoActive)stopHeldMotor(false);
  },110);
+}
+function startAutoHeight(axis,kind){
+ if(!connected||!verified||trialActive||preparingTest||pressHeld||!el('motorChecked').checked||
+    !heldAxes.has(axis)||!heightFlags[axis].referenced||
+    !(kind===1?heightFlags[axis].restSet:heightFlags[axis].dispenseSet))return;
+ dispenseSequence=null;
+ if(kind===2){
+   const other=axis===1?2:1;
+   if(!heightFlags[other].referenced||!heightFlags[other].restSet||!heldAxes.has(other)){
+     el('motorTestState').textContent='Antes de dispensar, coloca Z'+other+' en reposo y confirma su posición.';
+     return;
+   }
+   if(heightPositions[other]!==heightFlags[other].rest){
+     dispenseSequence={targetAxis:axis,otherAxis:other};
+     launchAutoMove(other,1);
+     return;
+   }
+ }
+ launchAutoMove(axis,kind);
 }
 function startMotorHold(axis,up,e){
  if(e.pointerType==='mouse'&&e.button!==0)return;
@@ -533,10 +551,21 @@ function response(data){
  }
  if(data.auto_reached===true){
    const axis=Number(data.axis);
-   if(axis===1||axis===2)heldAxes.add(axis);
+   if(axis===1||axis===2){
+     heldAxes.add(axis);
+     if(Number.isFinite(Number(data.position)))heightPositions[axis]=Number(data.position);
+   }
    updateHoldStatus();
    stopTrialHeartbeat();
-   el('motorTestState').textContent='Z'+data.axis+' · LLEGÓ A SU ALTURA · posición mantenida';
+   if(dispenseSequence&&axis===dispenseSequence.otherAxis){
+     const target=dispenseSequence.targetAxis;
+     dispenseSequence=null;
+     el('motorTestState').textContent='Z'+axis+' en REPOSO · activando dispensación Z'+target;
+     launchAutoMove(target,2);
+   }else{
+     dispenseSequence=null;
+     el('motorTestState').textContent='Z'+data.axis+' · POSICIÓN ALCANZADA · aguja retenida';
+   }
    void send('GET_Z_HEIGHTS');
  }
  if(data.hold_running){
@@ -545,6 +574,7 @@ function response(data){
    el('motorTestState').textContent='Z'+data.axis+' · MOVIENDO · '+(data.rms_target_ma??'?')+' mA RMS de corriente configurada';
  }
  if(data.status==='DONE'&&data.reason==='HOLD_TIMEOUT_OR_LINK_LOST'){
+   dispenseSequence=null;
    el('rgbPinNote').textContent='Apagado · motor detenido';
    if(data.holding===true&&Number(data.axis)>0)heldAxes.add(Number(data.axis));
    else heldAxes.clear();
@@ -599,6 +629,7 @@ function response(data){
  if(typeof data.stall_enabled==='boolean'&&data.axis)stallData['z'+data.axis+'_enabled']=data.stall_enabled;
  if(Number.isFinite(data.threshold)&&data.axis)stallData['z'+data.axis+'_threshold']=data.threshold;
  if(data.status==='ERROR'){
+   dispenseSequence=null;
    if(wizardSaving||wizardBeginPending){
      wizardMessage('No se ha guardado: '+(data.code||'error')+'. Revisa la conexión y repite.');
      wizardSaving=false;wizardBeginPending=0;wizardRefreshButtons();
