@@ -143,6 +143,7 @@ function updateMotorTest(){
    }
  }
  el('motorStop').disabled=!connected;
+ el('holdSpeed').disabled=!connected||!verified||preparingTest||trialActive;
 }
 function stopTrialHeartbeat(){
  if(trialBeatTimer){clearInterval(trialBeatTimer);trialBeatTimer=null;}
@@ -223,7 +224,7 @@ function response(data){
  }
  if(typeof data.mode==='string'&&data.mode!=='HOLD_MOTOR_TEST'){
    verified=false;
-   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.1-hold-safe';
+   el('coldResult').textContent='FIRMWARE ANTIGUO: actualiza a 0.9.2-hold-speed';
  }
  if(data.state==='HOLD_MOTOR_TEST'){
    if(!verified){
@@ -270,6 +271,12 @@ function response(data){
    el('motorTestState').textContent='Parada por seguridad (10 s o comunicación) · suelta y vuelve a pulsar';
  }
 
+ if(Number.isFinite(data.hold_speed_sps)){
+   const speed=Math.max(80,Math.min(500,Math.round(Number(data.hold_speed_sps))));
+   el('holdSpeed').value=String(speed);
+   el('holdSpeedValue').textContent=String(speed);
+   el('holdSpeedInfo').textContent='Velocidad aplicada: '+speed+' pasos/s · aceleración suave';
+ }
  if(Number.isFinite(data.speed_sps)&&data.status!=='SAMPLE'){
    el('speed').value=String(data.speed_sps);el('speedNumber').value=String(data.speed_sps);el('speedValue').textContent=String(data.speed_sps);
    if(!jogHeld&&data.speed_sps<400)el('loadStatus').textContent='Para medir carga, usa 400 pasos/s o más';
@@ -381,7 +388,7 @@ function send(cmd,fields={}){
  if(!connected||!writer)return Promise.resolve();
  const coldAllowed=new Set(['PING','GET_INFO','GET_STATUS','GET_READINESS','GET_SENSORS','GET_COLD_CHECK','COLD_SELF_TEST',
   'SELECT_Z1','SELECT_Z2','DISABLE_CHANNELS','STOP_TEST','JOG_GPIO_STOP','JOG_STOP','JOG_MOTOR_STOP',
-  'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT']);
+  'GET_DRIVER_TEST','PREPARE_TEST','HOLD_START','HOLD_HEARTBEAT','SET_HOLD_SPEED']);
  if(!coldAllowed.has(cmd)){log('COMANDO BLOQUEADO EN FRÍO: '+cmd);return Promise.resolve();}
  const m={id:counter++,cmd,...fields};
  const payload=new TextEncoder().encode(JSON.stringify(m)+'\n');
@@ -394,6 +401,14 @@ function send(cmd,fields={}){
 }
 el('connect').onclick=()=>void connect();
 el('disconnect').onclick=disconnect;
+el('holdSpeed').oninput=()=>{
+ el('holdSpeedValue').textContent=el('holdSpeed').value;
+ el('holdSpeedInfo').textContent='Velocidad seleccionada: '+el('holdSpeed').value+' pasos/s';
+};
+el('holdSpeed').onchange=()=>{
+ if(!connected||!verified||trialActive||preparingTest)return;
+ void send('SET_HOLD_SPEED',{speed_sps:Number(el('holdSpeed').value)});
+};
 for(const id of ['motorRated','motorChecked']){
  const c=el(id);
  c.onchange=()=>{stopHeldMotor();updateMotorTest();};
