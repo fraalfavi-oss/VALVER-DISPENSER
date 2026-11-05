@@ -179,12 +179,15 @@ void stopJog(){
  disableDrivers();
 }
 
-struct Trial {bool active=false,high=false;uint8_t axis=0;uint32_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0;} trial;
+struct Trial {bool active=false,high=false;uint8_t axis=0;uint32_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0,lastRampMs=0;float actualSps=110.0f;} trial;
 uint8_t armedAxis=0;
 uint16_t armedMa=0;
 uint32_t armedAt=0;
 constexpr uint16_t HOLD_RMS_MIN_MA=100,HOLD_RMS_MAX_MA=150;
-constexpr uint32_t HOLD_PERIOD_US=9000,HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
+constexpr uint16_t HOLD_SPEED_MIN_SPS=80,HOLD_SPEED_MAX_SPS=500,HOLD_START_SPS=110;
+constexpr float HOLD_ACCEL_SPS2=350.0f;
+uint16_t holdTargetSps=HOLD_START_SPS;
+constexpr uint32_t HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
 void abortTrial(){
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
  disableDrivers();
@@ -201,8 +204,20 @@ void serviceTrial(){
    Serial.printf(R"json({"id":%lu,"status":"DONE","reason":"HOLD_TIMEOUT_OR_LINK_LOST","pulses":%lu,"drivers_enabled":false})json" "\n",id,(unsigned long)steps);
    return;
  }
+ if((uint32_t)(ms-trial.lastRampMs)>=20){
+   const uint32_t elapsed=ms-trial.lastRampMs;
+   trial.lastRampMs=ms;
+   if(trial.actualSps<(float)holdTargetSps){
+     trial.actualSps+=HOLD_ACCEL_SPS2*((float)elapsed/1000.0f);
+     if(trial.actualSps>holdTargetSps)trial.actualSps=holdTargetSps;
+   }else if(trial.actualSps>(float)holdTargetSps){
+     trial.actualSps-=HOLD_ACCEL_SPS2*((float)elapsed/1000.0f);
+     if(trial.actualSps<holdTargetSps)trial.actualSps=holdTargetSps;
+   }
+ }
+ const uint32_t stepPeriodUs=1000000UL/(uint32_t)trial.actualSps;
  const uint8_t step=trial.axis==1?Z1_STEP:Z2_STEP;
- if(!trial.high && (uint32_t)(t-trial.edge)>=HOLD_PERIOD_US){
+ if(!trial.high && (uint32_t)(t-trial.edge)>=stepPeriodUs){
    digitalWrite(step,HIGH);trial.high=true;trial.edge=t;
  }else if(trial.high && (uint32_t)(t-trial.edge)>=20){
    digitalWrite(step,LOW);trial.high=false;trial.count++;
@@ -213,7 +228,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_HEARTBEAT","SET_HOLD_SPEED"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -238,7 +253,17 @@ void dispatch(const char* data) {
  unsigned long id=0;char cmd[54];
  if(!readId(data,id)||!readCommand(data,cmd,sizeof(cmd))){replyError(0,"INVALID_REQUEST");return;}
  if(!coldCommandAllowed(cmd)){replyError(id,"TEST_MODE_LEGACY_COMMAND_LOCKED");return;}
- if(strcmp(cmd,"GET_DRIVER_TEST")==0){
+ if(strcmp(cmd,"SET_HOLD_SPEED")==0){
+   if(trial.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
+   unsigned long requested=0;
+   if(!readUIntField(data,"speed_sps",requested)||
+      requested<HOLD_SPEED_MIN_SPS||requested>HOLD_SPEED_MAX_SPS){
+     replyError(id,"INVALID_HOLD_SPEED");return;
+   }
+   holdTargetSps=(uint16_t)requested;
+   Serial.printf(R"json({"id":%lu,"status":"OK","hold_speed_sps":%u,"hold_min_sps":%u,"hold_max_sps":%u})json" "\n",
+     id,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS);
+ }else if(strcmp(cmd,"GET_DRIVER_TEST")==0){
    if(trial.active){replyError(id,"TEST_RUNNING");return;}
    const bool z1=probeStall(1),z2=probeStall(2);
    Serial.printf(R"json({"id":%lu,"status":"OK","driver_test":{"z1_uart":%s,"z2_uart":%s,"power_and_motor_wiring_verified":false}})json" "\n",
@@ -286,9 +311,11 @@ void dispatch(const char* data) {
    digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?HIGH:LOW);
    digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);delayMicroseconds(30);
    trial.active=true;trial.high=false;trial.axis=(uint8_t)axis;trial.count=0;trial.id=id;
-   trial.began=micros();trial.edge=trial.began-HOLD_PERIOD_US;trial.heartbeat=millis();
+   trial.began=micros();trial.actualSps=(float)(holdTargetSps<HOLD_START_SPS?holdTargetSps:HOLD_START_SPS);
+   trial.edge=trial.began-(1000000UL/(uint32_t)trial.actualSps);
+   trial.heartbeat=millis();trial.lastRampMs=trial.heartbeat;
    digitalWrite(axis==1?Z1_EN:Z2_EN,LOW);
-   Serial.printf(R"json({"id":%lu,"status":"ACCEPTED","hold_running":true,"axis":%lu,"rms_target_ma":%u,"drivers_enabled":true})json" "\n",id,axis,armedMa);
+   Serial.printf(R"json({"id":%lu,"status":"ACCEPTED","hold_running":true,"axis":%lu,"rms_target_ma":%u,"hold_speed_sps":%u,"drivers_enabled":true})json" "\n",id,axis,armedMa,holdTargetSps);
  }else if(strcmp(cmd,"HOLD_HEARTBEAT")==0){
    if(trial.active)trial.heartbeat=millis();
  }else if(strcmp(cmd,"GET_COLD_CHECK")==0 || strcmp(cmd,"COLD_SELF_TEST")==0){
@@ -296,9 +323,9 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.1-hold-safe\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.2-hold-speed\",\"mode\":\"HOLD_MOTOR_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"HOLD_MOTOR_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"hold_speed_sps\":%u,\"hold_min_sps\":%u,\"hold_max_sps\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",trial.active?"true":"false",trial.active?"true":"false",trial.active?"true":"false",selectedAxis,holdTargetSps,HOLD_SPEED_MIN_SPS,HOLD_SPEED_MAX_SPS,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
    unsigned long requested=0;
