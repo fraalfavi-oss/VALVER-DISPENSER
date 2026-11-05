@@ -1,4 +1,4 @@
-let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null;
+let port=null,reader=null,writer=null,connected=false,closing=false,rx='',counter=1,pingOK=false,verified=false,testing=false,selected=0,jogHeld=false,jogTimer=null,txQueue=Promise.resolve(),autoSelected=false,stallData={z1_uart:false,z2_uart:false,z1_enabled:false,z2_enabled:false,z1_threshold:40,z2_threshold:40},monitorRequested={1:false,2:false},loadSamples=[],loadBaselineSamples=[],loadBaseline=null,loadSuggestedThreshold=null,loadGains={1:8,2:1},coldMode=true,latestCold=null,coldPollTimer=null,opening=false;
 const el=id=>document.getElementById(id);
 const diagSamples={1:[],2:[]};
 const diagInfo={1:null,2:null};
@@ -109,28 +109,24 @@ function receiveLoad(d){
  drawLoadChart();
 }
 function log(s){const t=el('log');t.textContent+='\n'+s;t.scrollTop=t.scrollHeight}
-function coldManualCount(){
- const all=[...document.querySelectorAll('#coldChecklist input.cold-manual')];
- const done=all.filter(c=>c.checked).length;
- el('coldCounter').textContent='Comprobaciones físicas: '+done+'/'+all.length+' · NO autoriza aplicar 24 V';
-}
 function showColdTest(d){
  latestCold=d;
  const z1=d.z1||{},z2=d.z2||{};
- const ok=d.cold_lock===true&&d.gpio_local_safe===true&&
+ const good=d.cold_lock===true&&d.gpio_local_safe===true&&
   z1.en_high===true&&z1.step_low===true&&z1.dir_low===true&&
   z2.en_high===true&&z2.step_low===true&&z2.dir_low===true;
- el('coldResult').textContent=ok?'GPIO locales correctos · EN HIGH, STEP/DIR LOW':
-   'ERROR DE NIVELES GPIO · NO CONECTAR 24 V';
- el('coldResult').style.color=ok?'#b8f4d5':'#ffb8b8';
- el('coldDetails').textContent='Z1: EN '+(z1.en_high?'HIGH OK':'FALLO')+
-  ' · STEP '+(z1.step_low?'LOW OK':'FALLO')+
-  ' · DIR '+(z1.dir_low?'LOW OK':'FALLO')+
-  ' | Z2: EN '+(z2.en_high?'HIGH OK':'FALLO')+
-  ' · STEP '+(z2.step_low?'LOW OK':'FALLO')+
-  ' · DIR '+(z2.dir_low?'LOW OK':'FALLO')+
-  ' | Cableado externo NO VERIFICADO';
- log('DIAGNÓSTICO LOCAL EN FRÍO: '+JSON.stringify(d));
+ el('coldGpio').textContent=good?'OK · ESTADO LOCAL SEGURO':'FALLO · NO ALIMENTAR';
+ el('coldGpio').style.color=good?'#a7f0c8':'#ffaaaa';
+ el('coldResult').textContent=good?'ESP32 Y GPIO OK · RESTO DEL CABLEADO NO VERIFICADO':
+   'FALLO EN GPIO DEL ESP32 · NO CONECTAR 24 V';
+ el('coldResult').style.color=good?'#b8f4d5':'#ffaaaa';
+ el('coldDetails').textContent='Z1: EN '+(z1.en_high?'HIGH OK':'ERROR')+
+   ' / STEP '+(z1.step_low?'LOW OK':'ERROR')+' / DIR '+(z1.dir_low?'LOW OK':'ERROR')+
+   '   |   Z2: EN '+(z2.en_high?'HIGH OK':'ERROR')+
+   ' / STEP '+(z2.step_low?'LOW OK':'ERROR')+' / DIR '+(z2.dir_low?'LOW OK':'ERROR');
+ el('coldLast').textContent='Última comprobación automática: '+new Date().toLocaleTimeString('es-ES')+
+  ' · Solo lectura de GPIO ESP32; no prueba continuidad externa';
+ log('AUTO-CHECK: '+(good?'GPIO locales OK':'FALLO GPIO')+' | conexiones físicas NO verificadas');
 }
 function update(){
  const ready=connected&&pingOK&&verified&&!testing&&!coldMode;
@@ -138,7 +134,7 @@ function update(){
  el('state').style.color=pingOK&&verified?'#f0c581':'#f5b4b4';
  for(const id of ['ping','info','status','sensors','readiness','disconnect'])el(id).disabled=!connected;
  el('connect').disabled=connected;
- el('coldTest').disabled=!connected||!pingOK||!verified;
+
  el('stop').disabled=!connected;
  el('speed').disabled=!ready;
  el('diagCompare').disabled=!ready || jogHeld;
@@ -164,8 +160,14 @@ function update(){
 function response(data){
  if(data.reply==='PONG'){
    pingOK=true;
-   log('PONG recibido · verificando versión segura antes de cualquier comando');
+   el('coldUsb').textContent='OK · PONG';
+   el('coldUsb').style.color='#a7f0c8';
+   log('PONG recibido · verificando versión segura antes de diagnóstico automático');
    send('GET_INFO');send('GET_STATUS');
+ }
+ if(data.device==='VALVER SMART DISPENSER'&&typeof data.firmware==='string'){
+   el('coldFirmware').textContent=(data.mode==='COLD_INSPECTION'?'OK · ':'NO SEGURO · ')+data.firmware;
+   el('coldFirmware').style.color=data.mode==='COLD_INSPECTION'?'#a7f0c8':'#ffaaaa';
  }
  if(typeof data.mode==='string'&&data.mode!=='COLD_INSPECTION'){
    verified=false;
@@ -174,8 +176,14 @@ function response(data){
  if(data.state==='COLD_INSPECTION'){
    if(!verified){
      verified=true;coldMode=true;
-     log('Bloqueo de movimiento confirmado. Solo inspección local por USB.');
+     el('coldFirmware').textContent='OK · BLOQUEO COLD_INSPECTION';
+     el('coldFirmware').style.color='#a7f0c8';
+     log('Bloqueo de movimiento confirmado · iniciando autodiagnóstico');
      send('GET_COLD_CHECK');
+     if(coldPollTimer)clearInterval(coldPollTimer);
+     coldPollTimer=setInterval(()=>{
+       if(connected&&pingOK&&verified&&!closing)void send('GET_COLD_CHECK');
+     },5000);
    }
  }
  if(data.state==='HOLD_MOTOR_JOG'){
@@ -249,19 +257,37 @@ async function readLoop(){const decoder=new TextDecoder();
  }}catch(e){log('Error de lectura: '+e.message)}
  finally{if(connected)await disconnect()}
 }
-async function connect(){
- if(!('serial' in navigator)){log('Este navegador no admite Web Serial');return;}
+async function connect(authorizedPort=null){
+ if(!('serial' in navigator)){log('Este navegador no admite Web Serial; usa Chrome o Edge');return;}
+ if(connected||opening)return;
+ opening=true;
  try{
-  port=await navigator.serial.requestPort();await port.open({baudRate:115200});
+  port=authorizedPort||await navigator.serial.requestPort();
+  await port.open({baudRate:115200});
   reader=port.readable.getReader();writer=port.writable.getWriter();
   connected=true;pingOK=false;verified=false;coldMode=true;latestCold=null;selected=0;autoSelected=false;monitorRequested={1:false,2:false};resetLoad(0);update();
-  el('coldResult').textContent='Esperando confirmación de firmware seguro…';
+  el('coldUsb').textContent='COM ABIERTO · ESPERANDO PONG';
+  el('coldFirmware').textContent='PENDIENTE';
+  el('coldGpio').textContent='PENDIENTE';
+  el('coldResult').textContent='Diagnóstico automático iniciado…';
   el('coldDetails').textContent='—';
-  log('COM abierto');void readLoop();void send('PING');
- }catch(e){log('Error de conexión: '+e.message);await disconnect();}
+  el('coldLast').textContent='Esperando respuesta del firmware…';
+  log('Puerto COM abierto, arranca comprobación automática');
+  void readLoop();void send('PING');
+ }catch(e){
+  log('Error de conexión: '+e.message);
+  el('coldResult').textContent='NO SE PUDO ABRIR COM · revisa que VS Code/PlatformIO no lo estén utilizando';
+  await disconnect();
+ }finally{opening=false;}
 }
 async function disconnect(){
- if(closing)return;endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;autoSelected=false;update();
+ if(closing)return;
+ if(coldPollTimer){clearInterval(coldPollTimer);coldPollTimer=null;}
+ endJog();closing=true;connected=false;pingOK=false;verified=false;testing=false;selected=0;autoSelected=false;
+ el('coldUsb').textContent='DESCONECTADO';el('coldUsb').style.color='#ffaaaa';
+ el('coldGpio').textContent='SIN LECTURA ACTUAL';
+ el('coldResult').textContent='ESP32 desconectado · no interpretar lecturas anteriores como actuales';
+ update();
  try{await reader?.cancel()}catch{}
  try{reader?.releaseLock()}catch{}reader=null;
  try{writer?.releaseLock()}catch{}writer=null;
@@ -282,10 +308,8 @@ function send(cmd,fields={}){
  }).catch(e=>{log('Error de envío: '+e.message);endJog();});
  return txQueue;
 }
-el('connect').onclick=connect;el('disconnect').onclick=disconnect;
-el('coldTest').onclick=()=>{if(verified)send('GET_COLD_CHECK');};
-document.querySelectorAll('#coldChecklist input.cold-manual').forEach(c=>c.addEventListener('change',coldManualCount));
-coldManualCount();
+el('connect').onclick=()=>void connect();
+el('disconnect').onclick=disconnect;
 el('ping').onclick=()=>send('PING');
 el('info').onclick=()=>send('GET_INFO');
 el('status').onclick=()=>send('GET_STATUS');
@@ -344,6 +368,20 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)endJog()});
 update();
 resetLoad(0);
 diagRefresh();
+// Reconnect automatically only when the browser has ALREADY granted exactly one serial port.
+if('serial' in navigator){
+ navigator.serial.getPorts().then(ports=>{
+   if(!connected&&!opening&&ports.length===1){
+     log('Puerto COM autorizado detectado · conexión automática');
+     void connect(ports[0]);
+   }else if(ports.length!==1){
+     el('coldResult').textContent=ports.length?'Hay varios COM autorizados: selecciona el ESP32':
+       'Primera conexión: pulsa Seleccionar COM y autoriza tu ESP32';
+   }
+ }).catch(e=>log('No se pudieron consultar puertos autorizados: '+e.message));
+}else{
+ el('coldResult').textContent='Web Serial no disponible en este navegador';
+}
 const descriptions={
 home:['CONTROL Z','Selecciona una sola aguja. Los motores están energizados únicamente durante el movimiento.'],
 tip:['CALIBRACIÓN DE PUNTA','Preparación: validar cableado y estado óptico en ambos sentidos; después referenciar Z1/Z2 por separado. Calibración física BLOQUEADA.'],
