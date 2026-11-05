@@ -42,6 +42,16 @@ nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286
 .cold-status-grid strong{font-size:10px;color:#f0c581;text-align:right}
 body.cold-ui nav button.nav,body.cold-ui .channels,body.cold-ui .speed-control,body.cold-ui .load-monitor,body.cold-ui .stall-control,body.cold-ui .actions,body.cold-ui .toolbar{display:none!important}
 body.cold-ui #jogHint{display:none!important}
+.motor-panel{background:#132d41;border:1px solid #4e9baf;border-radius:10px;padding:12px;margin-top:10px}
+.motor-panel h3{font-size:15px;color:#b9eaf4;margin:0 0 7px}
+.motor-panel p{font-size:11px;line-height:1.5;color:#c2d5e2}
+.motor-panel label{font-size:11px;color:#e4f2fc}
+.motor-panel input[type=number],.motor-panel select{background:#091c31;border:1px solid #698fa8;color:white;border-radius:5px;padding:8px;width:120px;max-width:100%}
+.motor-panel input[type=checkbox]{accent-color:#63cca5}
+.motor-panel .motor-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:9px 0}
+.motor-panel button{padding:10px 12px}
+.motor-panel button:disabled{opacity:.32}
+#motorTestState{display:block;color:#ffd48d;line-height:1.5;font-size:11px;margin:8px 0}
 #last{font-size:10px;color:#acd6e7} .details{display:none;padding:20px;background:#1b3047;border-radius:10px;min-height:298px}
 .details h2{font-size:20px}.details p{line-height:1.6;color:#adc5d9}
 @media(max-width:650px){main{width:800px;min-width:650px}body{overflow-x:auto}}
@@ -51,24 +61,34 @@ body.cold-ui #jogHint{display:none!important}
 <button class="nav active" data-page="home">INICIO</button><button class="nav" data-page="tip">PUNTA Z</button>
 <button class="nav" data-page="table">MESA Z</button><button class="nav" data-page="test">PRUEBA Z</button>
 <button class="nav" data-page="diag">DIAGN.</button><button class="nav" data-page="settings">AJUSTES</button>
-<div class="safe" id="powerLabel">SOLO USB<br>MOTORES BLOQUEADOS</div>
+<div class="safe" id="powerLabel">PRUEBA 12 V<br>PULSOS LIMITADOS</div>
 </nav><div class="workspace">
 <div class="topline"><button id="connect">Seleccionar COM</button><button id="disconnect" disabled>Desconectar</button><button id="ping" disabled>PING</button><button id="info" disabled>INFO</button><button id="status" disabled>Estado</button><button id="sensors" disabled>Sensores</button><button id="readiness" disabled>Seguridad</button><span class="state-pill" id="channelState">NINGUNO</span></div>
 <div id="homePage">
 <section class="cold-panel" id="coldPanel" aria-label="Autodiagnóstico USB seguro">
-<h3>AUTODIAGNÓSTICO EN FRÍO · SIN 24 V</h3>
-<p>Se ejecuta automáticamente al conectar el ESP32-S3 por USB. No activa motores, STEP ni UART. Si este navegador ya tiene permiso para el puerto COM, intenta reconectarlo automáticamente.</p>
+<h3>AUTODIAGNÓSTICO · PRUEBA CONTROLADA A 12 V</h3>
+<p>Al conectar el ESP32-S3 se comprueban automáticamente USB, GPIO y respuesta UART de los TMC2209. El diagnóstico no mueve motores. Solo una orden explícita de prueba puede generar pulsos STEP.</p>
 <div class="cold-status-grid">
  <div><span>USB / respuesta PONG</span><strong id="coldUsb">PENDIENTE</strong></div>
  <div><span>Firmware con bloqueo</span><strong id="coldFirmware">PENDIENTE</strong></div>
  <div><span>GPIO EN / STEP / DIR (lectura local)</span><strong id="coldGpio">PENDIENTE</strong></div>
- <div><span>UART con los TMC2209</span><strong id="coldUart">NO COMPROBABLE SIN VM</strong></div>
+ <div><span>UART con los TMC2209 (a 12 V)</span><strong id="coldUart">PENDIENTE</strong></div>
  <div><span>Polaridad +24 V, VIO, masas y bobinas</span><strong id="coldWiring">NO COMPROBABLE POR SOFTWARE</strong></div>
 </div>
 <p id="coldResult" style="font-size:12px;font-weight:bold;color:#e9bf82">Conecta el ESP32-S3 por USB; diagnóstico automático pendiente.</p>
 <p id="coldDetails" style="font-family:Consolas,monospace;color:#b7e7ed;white-space:pre-wrap">—</p>
 <p class="muted" id="coldLast">Sin lecturas aún.</p>
-<p style="color:#ffc7a7"><b>No conectes los 24 V todavía.</b> Un resultado correcto aquí no certifica el cableado externo: hace falta comprobar la fuente, polaridad, ausencia de cortos y pares de bobinas con multímetro.</p>
+<p style="color:#ffc7a7"><b>Solo 12 V durante esta prueba.</b> Un UART correcto no certifica la polaridad, las bobinas, el ajuste físico de corriente ni la ausencia de cortocircuitos. Si aparece CC, temperatura o ruido anormal, corta inmediatamente la fuente.</p>
+</section>
+<section id="motorPanel" class="motor-panel" aria-label="Prueba corta de un motor">
+<h3>PRUEBA DE UN SOLO MOTOR · PULSO CORTO</h3>
+<p>Solo con el NEMA 11 conectado correctamente, fuente a 12 V con límite adecuado y 3,3 V en VIO. Este modo no ejecuta movimientos continuos ni pruebas automáticas de motor.</p>
+<div class="motor-row"><label for="motorAxis">Driver con motor:</label><select id="motorAxis"><option value="1">Z1 · Conductivo</option><option value="2">Z2 · Estructural</option></select></div>
+<div class="motor-row"><label for="motorRated">Corriente NOMINAL del motor (mA, según su ficha):</label><input id="motorRated" type="number" min="150" max="2000" step="10" placeholder="Sin verificar"></div>
+<label style="display:block;margin:8px 0"><input id="motorChecked" type="checkbox"> He comprobado con multímetro VS/GND, VIO 3,3 V y masas; parejas de bobinas y corriente nominal; fuente limitada y recorrido libre.</label>
+<div class="motor-row"><button id="motorPrepare" disabled>1. Preparar driver y corriente</button><button id="motorUp" disabled>2. Pulso subir</button><button id="motorDown" disabled>2. Pulso bajar</button><button id="motorStop">PARADA</button></div>
+<strong id="motorTestState">Esperando comunicación UART. No se activará ningún driver automáticamente.</strong>
+<p>Máximo 96 micropasos a ~111 pasos/s (aprox. 0,9 s). Corriente de prueba: menor entre 150 mA RMS o un tercio de la nominal indicada. La fuente limitada a 15 mA no permite una prueba de movimiento fiable.</p>
 </section>
 <div class="channels">
 <section id="card1" class="card locked"><h2>Z1 · Conductivo</h2><span class="muted">Aguja adhesivo conductivo</span><p class="muted">STEP GPIO4 · DIR GPIO5 · EN GPIO6</p><button id="choose1" class="choose" disabled>Seleccionar Z1</button><div class="row"><button class="test" data-cmd="JOG_MOTOR_START_Z1_UP" disabled>▲ Mantener subir</button><button class="test" data-cmd="JOG_MOTOR_START_Z1_DOWN" disabled>▼ Mantener bajar</button></div><p class="muted">Reposo: pendiente · Dispensación: pendiente</p><p class="muted">Punta / mesa: sin calibrar</p></section>
@@ -80,4 +100,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-auto-cold-2"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-single-pulse-1"></script></body></html>
