@@ -12,7 +12,7 @@
 namespace {
 // USB-only cold commissioning. Neither motor movement nor TMC UART is permitted.
 // A reviewed firmware change is required before any powered tests.
-constexpr bool COLD_INSPECTION_ONLY=true;
+constexpr bool COLD_INSPECTION_ONLY=false; // UART diagnostic only; legacy jog forbidden
 constexpr uint8_t Z1_STEP=4,Z1_DIR=5,Z1_EN=6;
 constexpr uint8_t Z2_STEP=7,Z2_DIR=15,Z2_EN=16;
 constexpr uint32_t HEARTBEAT_TIMEOUT_MS=350;
@@ -178,17 +178,48 @@ void stopJog(){
  jog.active=false;
  disableDrivers();
 }
+
+struct Trial {bool active=false,high=false;uint8_t axis=0;uint16_t count=0;unsigned long id=0;uint32_t began=0,edge=0,heartbeat=0;} trial;
+uint8_t armedAxis=0;
+uint16_t armedMa=0;
+uint32_t armedAt=0;
+constexpr uint16_t TRIAL_PULSES=96, TRIAL_RMS_CAP_MA=150;
+void abortTrial(){
+ digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
+ disableDrivers();trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
+}
+void serviceTrial(){
+ if(!trial.active)return;
+ const uint32_t t=micros();
+ if((uint32_t)(t-trial.began)>1400000 || (uint32_t)(millis()-trial.heartbeat)>350){
+   const unsigned long id=trial.id;const uint16_t pulses=trial.count;
+   abortTrial();Serial.printf(R"json({"id":%lu,"status":"DONE","reason":"TIMEOUT_OR_LINK_LOST","pulses":%u,"drivers_enabled":false})json" "\n",id,pulses);
+   return;
+ }
+ const uint8_t step=trial.axis==1?Z1_STEP:Z2_STEP;
+ if(!trial.high && (uint32_t)(t-trial.edge)>=9000){
+   digitalWrite(step,HIGH);trial.high=true;trial.edge=t;
+ }else if(trial.high && (uint32_t)(t-trial.edge)>=20){
+   digitalWrite(step,LOW);trial.high=false;trial.count++;
+   if(trial.count==TRIAL_PULSES){
+     const unsigned long id=trial.id;abortTrial();
+     Serial.printf(R"json({"id":%lu,"status":"DONE","reason":"PULSE_TEST_COMPLETE","pulses":%u,"drivers_enabled":false})json" "\n",id,TRIAL_PULSES);
+   }
+ }
+}
 bool coldCommandAllowed(const char* cmd){
  const char* const allowed[]={
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
-   "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP"
+   "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
+   "GET_DRIVER_TEST","PREPARE_TEST","TEST_PULSE","TEST_HEARTBEAT"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
 }
 // Local readback only. This does NOT validate external power, polarity or wiring.
 void replyColdCheck(unsigned long id){
+ if(trial.active){replyError(id,"TEST_RUNNING");return;}
  disableDrivers();
  const bool en1=digitalRead(Z1_EN)==HIGH,en2=digitalRead(Z2_EN)==HIGH;
  const bool st1=digitalRead(Z1_STEP)==LOW,st2=digitalRead(Z2_STEP)==LOW;
@@ -205,15 +236,64 @@ void replySelection(unsigned long id){
 void dispatch(const char* data) {
  unsigned long id=0;char cmd[54];
  if(!readId(data,id)||!readCommand(data,cmd,sizeof(cmd))){replyError(0,"INVALID_REQUEST");return;}
- if(COLD_INSPECTION_ONLY && !coldCommandAllowed(cmd)){replyError(id,"COLD_LOCK_ACTIVE");return;}
- if(strcmp(cmd,"GET_COLD_CHECK")==0 || strcmp(cmd,"COLD_SELF_TEST")==0){
+ if(!coldCommandAllowed(cmd)){replyError(id,"TEST_MODE_LEGACY_COMMAND_LOCKED");return;}
+ if(strcmp(cmd,"GET_DRIVER_TEST")==0){
+   if(trial.active){replyError(id,"TEST_RUNNING");return;}
+   const bool z1=probeStall(1),z2=probeStall(2);
+   Serial.printf(R"json({"id":%lu,"status":"OK","driver_test":{"z1_uart":%s,"z2_uart":%s,"power_and_motor_wiring_verified":false}})json" "\n",
+     id,z1?"true":"false",z2?"true":"false");
+ }else if(strcmp(cmd,"PREPARE_TEST")==0){
+   if(trial.active){replyError(id,"TEST_RUNNING");return;}
+   abortTrial();
+   unsigned long axis=0,rated=0,confirm=0;
+   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"rated_ma",rated)||
+      !readUIntField(data,"confirm",confirm)||axis<1||axis>2||
+      rated<150||rated>2000||confirm!=1){replyError(id,"MOTOR_RATED_CURRENT_REQUIRED");return;}
+   if(!probeStall((uint8_t)axis)){replyError(id,"UART_NOT_READY_NO_MOTION");return;}
+   TMC2209Stepper &d=stallDriver((uint8_t)axis);
+   const uint8_t before=d.IFCNT();
+   d.pdn_disable(true);
+   d.I_scale_analog(false);
+   d.toff(3);
+   d.microsteps(16);
+   d.en_spreadCycle(false);
+   d.pwm_autoscale(true);
+   const uint16_t target=(uint16_t)((rated/3U)<TRIAL_RMS_CAP_MA?rated/3U:TRIAL_RMS_CAP_MA);
+   d.rms_current(target);
+   const uint8_t after=d.IFCNT();
+   if(!probeStall((uint8_t)axis)||after==before||!d.pdn_disable()||d.I_scale_analog()||
+      d.toff()!=3||d.microsteps()!=16||d.irun()==0){
+     abortTrial();replyError(id,"UART_CURRENT_READBACK_FAILED");return;
+   }
+   armedAxis=(uint8_t)axis;armedMa=target;armedAt=millis();
+   Serial.printf(R"json({"id":%lu,"status":"OK","test_prepared":true,"axis":%lu,"rms_target_ma":%u,"pulses":%u,"drivers_enabled":false})json" "\n",id,axis,target,TRIAL_PULSES);
+ }else if(strcmp(cmd,"TEST_PULSE")==0){
+   unsigned long axis=0,up=0;
+   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"up",up)||axis<1||axis>2||up>1){replyError(id,"BAD_TEST_AXIS");return;}
+   if(trial.active){replyError(id,"TEST_RUNNING");return;}
+   if(!armedAt||armedAxis!=axis||(uint32_t)(millis()-armedAt)>10000){
+     abortTrial();replyError(id,"PREPARE_EXPIRED");return;
+   }
+   if(!probeStall((uint8_t)axis)){abortTrial();replyError(id,"UART_LOST_NO_MOTION");return;}
+   TMC2209Stepper &d=stallDriver((uint8_t)axis);
+   if(d.drv_err()||d.toff()!=3||d.irun()==0){abortTrial();replyError(id,"DRIVER_FAULT_NO_MOTION");return;}
+   disableDrivers();
+   digitalWrite(axis==1?Z1_DIR:Z2_DIR,up?HIGH:LOW);
+   digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);delayMicroseconds(30);
+   trial.active=true;trial.high=false;trial.axis=(uint8_t)axis;trial.count=0;trial.id=id;
+   trial.began=micros();trial.edge=trial.began-9000;trial.heartbeat=millis();
+   digitalWrite(axis==1?Z1_EN:Z2_EN,LOW);
+   Serial.printf(R"json({"id":%lu,"status":"ACCEPTED","test_running":true,"axis":%lu,"rms_target_ma":%u,"drivers_enabled":true})json" "\n",id,axis,armedMa);
+ }else if(strcmp(cmd,"TEST_HEARTBEAT")==0){
+   if(trial.active)trial.heartbeat=millis();
+ }else if(strcmp(cmd,"GET_COLD_CHECK")==0 || strcmp(cmd,"COLD_SELF_TEST")==0){
    replyColdCheck(id);
  }else if(strcmp(cmd,"PING")==0){
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"reply\":\"PONG\"}\n",id);
  }else if(strcmp(cmd,"GET_INFO")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.8.0-cold-inspection\",\"mode\":\"COLD_INSPECTION\"}\n",id);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"device\":\"VALVER SMART DISPENSER\",\"firmware\":\"0.9.0-single-pulse\",\"mode\":\"SINGLE_PULSE_TEST\"}\n",id);
  }else if(strcmp(cmd,"GET_STATUS")==0 || strcmp(cmd,"GET_READINESS")==0){
-   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"COLD_INSPECTION\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
+   Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"SINGLE_PULSE_TEST\",\"motor_motion_ready\":%s,\"motors_enabled\":%s,\"drivers_enabled\":%s,\"jog_active\":%s,\"selected_axis\":%u,\"speed_sps\":%u,\"speed_min_sps\":%u,\"speed_max_sps\":%u,\"limits_verified_by_firmware\":false}\n",id,stepClockReady?"true":"false",jog.active?"true":"false",jog.active?"true":"false",jog.active?"true":"false",selectedAxis,speedSps,MIN_SPEED_SPS,MAX_SPEED_SPS);
  }else if(strcmp(cmd,"SET_SPEED")==0){
    if(jog.active){replyError(id,"STOP_BEFORE_SPEED_CHANGE");return;}
    unsigned long requested=0;
@@ -266,7 +346,7 @@ void dispatch(const char* data) {
  }else if(strcmp(cmd,"SELECT_Z1")==0 || strcmp(cmd,"SELECT_Z2")==0){
    stopJog();selectedAxis=strcmp(cmd,"SELECT_Z1")==0?1:2;replySelection(id);
  }else if(strcmp(cmd,"DISABLE_CHANNELS")==0||strcmp(cmd,"STOP_TEST")==0||strcmp(cmd,"JOG_GPIO_STOP")==0||strcmp(cmd,"JOG_STOP")==0){
-   stopJog();selectedAxis=0;
+   abortTrial();stopJog();selectedAxis=0;
    Serial.printf("{\"id\":%lu,\"status\":\"OK\",\"state\":\"STOPPED\",\"drivers_enabled\":false}\n",id);
  }else if(strcmp(cmd,"JOG_MOTOR_START_Z1_UP")==0||strcmp(cmd,"JOG_MOTOR_START_Z1_DOWN")==0||
          strcmp(cmd,"JOG_MOTOR_START_Z2_UP")==0||strcmp(cmd,"JOG_MOTOR_START_Z2_DOWN")==0){
@@ -365,7 +445,7 @@ void setup(){
    stallSerialZ2.begin(UART_BAUD,SERIAL_8N1,UART_Z2_RX,UART_Z2_TX);
    stallSerialZ1.setTimeout(15);
    stallSerialZ2.setTimeout(15);
-   stepClockReady=configureStepClock();
+   stepClockReady=false; // no legacy PWM step clock
  }else{
    // UART pins left as inputs: no traffic into unpowered TMC2209.
    pinMode(UART_Z1_RX,INPUT);pinMode(UART_Z1_TX,INPUT);
@@ -387,6 +467,6 @@ void loop(){
      else tooLong=true;
    }
  }
- serviceJog();
- serviceStall();
+ serviceTrial();
+ // Legacy motion service disabled.
 }
