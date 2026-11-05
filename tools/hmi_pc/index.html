@@ -99,10 +99,10 @@ body.cold-ui #jogHint{display:none!important}
 <div class="axis-simple"><strong>Z2 · ESTRUCTURAL</strong><span id="z2Comms" class="axis-status">UART pendiente</span>
 <div class="axis-buttons"><button id="motorZ2Up" disabled>▲ MANTENER SUBIR</button><button id="motorZ2Down" disabled>▼ MANTENER BAJAR</button></div></div>
 </div>
-<div class="speed-box"><div class="speed-caption"><label for="holdSpeed">VELOCIDAD Z1 Y Z2</label><strong><span id="holdSpeedValue">110</span> pasos/s</strong></div>
-<input id="holdSpeed" type="range" min="80" max="1600" step="10" value="110" disabled>
-<div class="speed-ends"><span>80 · suave</span><span>1600 · rápido</span></div>
-<small id="holdSpeedInfo">Ajusta con los motores detenidos. Arranque y aceleración progresivos. Dirección SUBIR/BAJAR corregida por software.</small></div>
+<div class="speed-box"><div class="speed-caption"><label for="holdSpeed">VELOCIDAD Z1 Y Z2</label><strong><span id="holdSpeedValue">1600</span> micropasos/s</strong></div>
+<input id="holdSpeed" type="range" min="80" max="8000" step="20" value="1600" disabled>
+<div class="speed-ends"><span>80 · suave</span><span>8000 · rápido</span></div>
+<small id="holdSpeedInfo">Ajusta con los motores detenidos. Velocidad inicial 1600; prueba velocidades altas lejos de los topes. Aceleración progresiva. Dirección SUBIR/BAJAR corregida por software.</small></div>
 <div class="rgb-pin-row">
  <span class="rgb-dot rgb-blue"></span> Z1: azules
  <span class="rgb-dot rgb-red"></span> Z2: rojos
@@ -143,4 +143,4 @@ body.cold-ui #jogHint{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-current-rated-6"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-fast-z-7"></script></body></html>
