@@ -164,6 +164,30 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 .cal-jog-grid>div{display:grid;grid-template-columns:auto 1fr 1fr;align-items:center;gap:5px;background:#122b40;border-radius:7px;padding:7px}
 .cal-jog-grid strong{font-size:10px;white-space:nowrap}
 .cal-jog-grid button{min-height:45px;font-size:11px;padding:5px 2px;touch-action:manipulation}
+
+/* Guided touchscreen calibration: simple sequence for 800x480 */
+#wizardLegacy[hidden], #wizardPick[hidden], #wizardWork[hidden], #wizardComplete[hidden]{display:none!important}
+.setup-wizard{background:#10293c;border:1px solid #3e758f;border-radius:9px;padding:14px;min-height:275px}
+.wizard-head{display:flex;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid #426984;padding-bottom:10px;margin-bottom:12px}
+.wizard-head strong{font-size:18px;color:#c3e8f9}
+.wizard-head small{font-size:11px;color:#a7c3d5}
+.wizard-pick>span{display:block;font-size:13px;margin-bottom:12px;color:#bfddec}
+.wizard-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 17px}
+.wizard-choice button{min-height:62px;padding:7px 4px;white-space:normal;touch-action:manipulation;font-size:12px}
+.wizard-choice button.chosen{background:#146b85;border:2px solid #81d7f7;color:white}
+.wizard-primary{background:#197965!important;border-color:#49b99c!important;min-height:53px;font-size:14px;padding:12px;touch-action:manipulation}
+#wizardBegin,#wizardRestart{width:100%}
+.wizard-step{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:14px 0 10px}
+.wizard-step strong{font-size:20px;color:#bef2fb}
+.wizard-step span{color:#acd1e2;font-size:12px}
+#wizardInstruction{font-size:14px;color:#e0f2fb;line-height:1.5;margin:8px 0 15px}
+.wizard-move{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 13px}
+.wizard-move button{min-height:64px;font-size:16px;background:#225c7b;touch-action:manipulation}
+.wizard-actions{display:grid;grid-template-columns:110px 1fr;gap:9px}
+.wizard-actions button{min-height:51px}
+#wizardComplete strong{font-size:20px;color:#83e2b4}
+#wizardComplete p{font-size:14px;line-height:1.5}
+.wizard-note{color:#9fc1d4;font-size:11px;line-height:1.45;margin:12px 3px 1px}
 </style></head><body class="cold-ui"><div id="heightKeypad" class="height-keypad" role="dialog" aria-modal="true" aria-labelledby="heightKeypadTitle" hidden>
 <div class="keypad-panel">
 <div class="keypad-top"><span id="heightKeypadTitle">ALTURA COMÚN · MICROPASOS</span><button id="keypadClose" type="button" aria-label="Cerrar">×</button></div>
@@ -222,7 +246,31 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 </div><div class="speed-control"><label for="speed">Velocidad Z1/Z2: <b id="speedValue">160</b> pasos/s</label><div class="fine-row"><button type="button" id="speedMinus">−</button><input id="speed" type="range" min="20" max="1600" step="1" value="160"><button type="button" id="speedPlus">+</button><input id="speedNumber" aria-label="Velocidad exacta" type="number" min="20" max="1600" step="1" value="160"></div><div class="muted">20–1600 pasos/s · Generación STEP por hardware · Cambios de 1 paso/s con motor detenido</div></div><div class="load-monitor"><div class="load-head"><b>Esfuerzo del motor · En directo</b><span id="loadStatus" class="load-badge">Esperando giro</span></div><div class="load-row"><div class="metric"><small>SG_RESULT · Lectura del TMC2209</small><strong id="loadRaw">—</strong><small id="loadDirection">Z1 · Sin lectura</small></div><div class="metric"><small>Incremento relativo de carga</small><strong id="loadPercent">—</strong><small id="loadBaseline">Calibrando referencia</small><small id="loadDelta" style="display:block;margin-top:5px;font-size:12px;color:#e2bc76">Variación SG: —</small><small id="loadTstep" style="display:block;margin-top:4px">TSTEP Z1: pendiente</small></div></div><div class="load-suggestion"><label for="loadGain">Amplificación visual Z seleccionada (solo HMI)</label><div class="fine-row"><input id="loadGain" type="range" min="1" max="20" step="1" value="8"><strong id="loadGainValue">8×</strong></div></div><div class="track"><div id="loadFill" class="fill"></div></div><canvas id="loadChart" width="600" height="104" aria-label="Historial reciente del esfuerzo relativo del motor"></canvas><div class="load-suggestion"><button type="button" id="diagCompare" disabled>Analizar drivers Z1 / Z2</button><span id="diagCompareResult" style="flex:1">Pulsa analizar (motores detenidos)</span></div><div class="load-check"><strong>Prueba comparativa de carga · Sin movimientos automáticos</strong><p id="diagGuide">1. Analiza los drivers. 2. Ajusta 800 pasos/s. 3. Mantén SUBIR con Z1 en vacío durante 5 s; repite con Z2.</p><div class="load-check-grid"><div id="diagZ1">Z1: sin muestras</div><div id="diagZ2">Z2: sin muestras</div></div><div id="diagVerdict">Resultado: esperando pruebas</div><button type="button" id="diagReset">Reiniciar mediciones</button></div><div class="load-suggestion"><span id="loadSuggested">Umbral: esperando referencia en vacío</span><button id="stallSuggest" type="button" disabled>Usar sensibilidad sugerida</button></div><p class="caption" id="loadCaption">El TMC2209 solo proporciona una estimación de carga durante el giro. No mide fuerza ni presión en N o bar. La referencia se toma al arrancar en vacío.</p></div><div class="stall-control"><div class="stall-top"><b>Detección de resistencia · StallGuard4</b><span id="stallState">UART no comprobado</span></div><label for="stallSensitivity">Sensibilidad Z seleccionada: <b id="stallValue">40</b> / 255</label><div class="fine-row"><button type="button" id="stallMinus">−</button><input id="stallSensitivity" type="range" min="0" max="255" step="1" value="40"><button type="button" id="stallPlus">+</button><input id="stallNumber" aria-label="Sensibilidad exacta" type="number" min="0" max="255" step="1" value="40"></div><div class="muted" id="stallResult">SG_RESULT: sin lectura (activar detección y mover a velocidad adecuada)</div><div class="row"><button id="stallApply" disabled>Aplicar sensibilidad</button><button id="stallEnable" disabled>Activar parada por carga</button><button id="stallDisable" disabled>Desactivar</button></div><p class="muted">Necesita PDN_UART conectado y probado. Solo fiable tras calibración a velocidad adecuada; no sustituye el final de carrera.</p></div><div class="actions"><div class="panel"><h3>CALIBRACIÓN DE PUNTA</h3><p>Referencia individual del sensor óptico</p><button data-page="tip">Ver calibración</button></div><div class="panel"><h3>ALTURA DE MESA</h3><p>Detección física pendiente de validar</p><button data-page="table">Ver calibración</button></div></div>
 </div>
 <div id="calibrationPage" class="screen-page" hidden>
-<section class="height-cal calibration-view" id="heightCalDetails" aria-label="Calibración de alturas Z">
+<section class="setup-wizard" aria-label="Configurar posiciones de agujas">
+ <div class="wizard-head"><strong>INICIO DEL SISTEMA</strong><small>Configura la dispensación y el reposo en 2 pasos</small></div>
+ <div class="wizard-pick" id="wizardPick">
+  <span>¿Qué motor quieres configurar?</span>
+  <div class="wizard-choice">
+   <button id="wizardSelectZ1" class="chosen" type="button">Z1 · CONDUCTIVO</button>
+   <button id="wizardSelectZ2" type="button">Z2 · ESTRUCTURAL</button>
+   <button id="wizardSelectBoth" type="button">AMBOS</button>
+  </div>
+  <button id="wizardBegin" class="wizard-primary" type="button">INICIAR SISTEMA</button>
+ </div>
+ <div id="wizardWork" hidden>
+  <div class="wizard-step"><strong id="wizardTitle">Z1 · DISPENSACIÓN</strong><span id="wizardCount">Paso 1 de 2</span></div>
+  <p id="wizardInstruction">Mantén SUBIR o BAJAR hasta colocar la aguja en DISPENSACIÓN.</p>
+  <div class="wizard-move"><button id="wizardUp" type="button" disabled>▲ SUBIR</button><button id="wizardDown" type="button" disabled>▼ BAJAR</button></div>
+  <div class="wizard-actions"><button id="wizardCancel" type="button">CANCELAR</button><button id="wizardConfirm" class="wizard-primary" type="button" disabled>OK · GUARDAR ESTA POSICIÓN</button></div>
+ </div>
+ <div id="wizardComplete" hidden>
+  <strong>✓ ALTURAS GUARDADAS</strong>
+  <p id="wizardDoneText">Los botones IR A REPOSO e IR A DISPENSACIÓN ya usan estas posiciones.</p>
+  <button id="wizardRestart" class="wizard-primary" type="button">CONFIGURAR OTRA VEZ</button>
+ </div>
+ <p class="wizard-note" id="wizardNote">Se guardan en la memoria del ESP32. Supervisa siempre los movimientos; sin sensor de origen, después de apagar debes confirmar la posición física antes de usar IR A.</p>
+</section>
+<div id="wizardLegacy" hidden><section class="height-cal calibration-view" id="heightCalDetails" aria-label="Calibración de alturas Z">
  <div class="calibration-header"><strong>CALIBRAR ALTURAS</strong><small>Marcar alturas individuales o comunes</small></div>
 <div class="cal-jog-grid">
  <div><strong>Z1 · CONDUCTIVO</strong><button id="calZ1Up" type="button" disabled>▲ SUBIR</button><button id="calZ1Down" type="button" disabled>▼ BAJAR</button></div>
@@ -260,7 +308,7 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
  </div>
  <small id="heightCalNotice">Marca REPOSO y DISPENSACIÓN de cada aguja. Ya podrás ir entre ambas alturas. Después de apagar y encender, sitúa la aguja en reposo y pulsa ESTOY EN REPOSO una sola vez. Sin finales de carrera: supervisa la máquina.</small>
  </div>
-</section>
+</section></div>
 </div>
 <div id="diagnosticPage" class="screen-page" hidden>
 <section class="diagnostic-view"><div class="calibration-header"><strong>DIAGNÓSTICO</strong><small>Comprobación automática USB, GPIO y UART</small></div>
@@ -286,4 +334,4 @@ body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
 <div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
 <div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
 <div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
-</div></div></main><script src="serial.js?v=20261105-simple-nav-14"></script></body></html>
+</div></div></main><script src="serial.js?v=20261105-wizard-15"></script></body></html>
