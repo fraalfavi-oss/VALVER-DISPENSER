@@ -139,12 +139,18 @@ void touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
 {
     (void)indev;
     data->state = LV_INDEV_STATE_RELEASED;
-
-    if(touch_touched()) {
+    static bool was_pressed=false;
+    const bool pressed=touch_touched();
+    if(pressed){
         data->state = LV_INDEV_STATE_PRESSED;
         data->point.x = touch_last_x;
         data->point.y = touch_last_y;
+        if(!was_pressed){
+            Serial.printf("[TOUCH] X=%d Y=%d\n",touch_last_x,touch_last_y);
+            valver_ui_note_touch(touch_last_x,touch_last_y);
+        }
     }
+    was_pressed=pressed;
 }
 }
 
