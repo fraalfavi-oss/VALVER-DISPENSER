@@ -2,9 +2,10 @@
 #include <lvgl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <Wire.h>
 #include "valver_ui.h"
 
-// VISUAL DEMO ONLY. NEVER send a motor command or toggle a motor GPIO.
+// Real wired interface. Motor commands and safety checks reside in controller.
 namespace {
 constexpr uint32_t BG=0x091522, BASE=0x112033, PANEL=0x19354B, CELL=0x10283C;
 constexpr uint32_t BLUE=0x285A7A, GREEN=0x177B67, RED=0x99374D, BORDER=0x37627B;
@@ -61,6 +62,7 @@ lv_obj_t* label(lv_obj_t* parent,int x,int y,int w,const char* str,
  return l;
 }
 void on_action(lv_event_t* e);
+void motorPress(lv_event_t* e);
 lv_obj_t* btn(lv_obj_t* parent,int x,int y,int w,int h,const char* str,
               uint32_t color,intptr_t action){
  lv_obj_t* b=lv_button_create(parent);
@@ -76,11 +78,17 @@ lv_obj_t* btn(lv_obj_t* parent,int x,int y,int w,int h,const char* str,
  lv_obj_set_style_text_color(l,lv_color_hex(TEXT),0);
  lv_obj_center(l);
  lv_obj_add_event_cb(b,on_action,LV_EVENT_CLICKED,reinterpret_cast<void*>(action));
+ if(action==Z1_UP||action==Z1_DOWN||action==Z2_UP||action==Z2_DOWN||
+    action==WIZ_UP||action==WIZ_DOWN){
+  lv_obj_add_event_cb(b,motorPress,LV_EVENT_PRESSED,reinterpret_cast<void*>(action));
+  lv_obj_add_event_cb(b,motorPress,LV_EVENT_RELEASED,reinterpret_cast<void*>(action));
+  lv_obj_add_event_cb(b,motorPress,LV_EVENT_PRESS_LOST,reinterpret_cast<void*>(action));
+ }
  return b;
 }
 void show_notice(const char* msg){
  if(notice)lv_label_set_text(notice,msg);
- Serial.printf("[VALVER HMI DEMO] %s\n",msg);
+ Serial.printf("[VALVER HMI] %s\n",msg);
 }
 void show_page(uint8_t index){
  if(index>3)return;
@@ -124,66 +132,7 @@ void wizard_render(){
  lv_label_set_text(wizardProgress,prog);
  lv_label_set_text(wizardHelp,help);
 }
-void on_speed(lv_event_t* e){
- lv_obj_t* slider=static_cast<lv_obj_t*>(lv_event_get_target(e));
- const int value=lv_slider_get_value(slider);
- char t[56];
- snprintf(t,sizeof(t),"Velocidad: %d micropasos/s",value);
- lv_label_set_text(speedLabel,t);
- show_notice("Velocidad ajustada en DEMO, sin motores.");
-}
-void on_action(lv_event_t* e){
- const intptr_t action=reinterpret_cast<intptr_t>(lv_event_get_user_data(e));
- taps++;
- if(counterLabel)lv_label_set_text_fmt(counterLabel,"TOQUES DETECTADOS: %lu",(unsigned long)taps);
- if(action>=NAV0&&action<=NAV3){show_page((uint8_t)(action-NAV0));return;}
- if(action==STOP){show_notice("PARADA pulsada. Sin motores conectados: DEMO.");return;}
- if(action==CONNECT){show_notice("Conexion al ESP32 de motores pendiente. Pantalla en DEMO.");return;}
- if(action>=Z1_UP&&action<=Z2_DISP){
-  static const char* names[]={"SUBIR Z1","BAJAR Z1","IR A REPOSO Z1",
-                             "IR A DISPENSACION Z1","SUBIR Z2","BAJAR Z2",
-                             "IR A REPOSO Z2","IR A DISPENSACION Z2"};
-  char text[100];snprintf(text,sizeof(text),"%s (demostracion, SIN MOVIMIENTO)",names[action-Z1_UP]);
-  show_notice(text);return;
- }
- if(action>=PICK_Z1&&action<=PICK_BOTH){
-  wizardMode=(uint8_t)(action-PICK_Z1);
-  wizard_render();
-  return;
- }
- if(action==BEGIN||action==WIZ_RESTART){
-  wizardRunning=true;wizardStep=0;
-  wizard_render();
-  show_notice("Calibracion visual iniciada. Solo pantalla.");
-  return;
- }
- if(action==WIZ_CANCEL){
-  wizardRunning=false;wizardStep=0;
-  wizard_render();
-  show_notice("Calibracion de prueba cancelada.");
-  return;
- }
- if(action==WIZ_UP||action==WIZ_DOWN){
-  show_notice(action==WIZ_UP?"SUBIR pulsado (solo prueba tactil)":
-               "BAJAR pulsado (solo prueba tactil)");
-  return;
- }
- if(action==WIZ_OK){
-  if(wizardRunning){
-   wizardStep++;
-   wizard_render();
-   show_notice(wizardStep>=(wizardMode==2?3:2)?
-                "Asistente DEMO completado, no se han guardado alturas.":
-                "OK recibido. Siguiente posicion de prueba.");
-  }
-  return;
- }
- if(action==WIZ_HOME){show_page(0);return;}
- if(action==ORIGIN_TEST){
-  show_notice("Busqueda real deshabilitada. Primero conectar y validar StallGuard.");
-  return;
- }
-}
+#include "hmi_i2c_ui.inc"
 void make_header(lv_obj_t* root){
  lv_obj_t* top=panel(root,0,0,800,53,0x071827);
  lv_obj_set_style_radius(top,0,0);
@@ -198,15 +147,15 @@ void make_header(lv_obj_t* root){
  navBtn[3]=btn(side,6,189,118,51,"DIAGNOSTICO",BLUE,NAV3);
  label(side,9,300,113,"ESP32 PANTALLA",CYAN);
  label(side,9,328,113,"MOTORES:",SUB);
- label(side,9,350,113,"DESCONECTADOS",SUB);
+ driverText=label(side,9,350,113,"SIN ENLACE",SUB);
  lv_obj_t* toolbar=panel(root,134,55,666,48,BASE);
  lv_obj_set_style_radius(toolbar,0,0);
- btn(toolbar,8,4,133,38,"CONECTAR (DEMO)",BLUE,CONNECT);
- label(toolbar,150,14,291,"UI LOCAL  |  SIN UART",SUB);
+ btn(toolbar,8,4,133,38,"VERIFICAR ENLACE",BLUE,CONNECT);
+ connectionText=label(toolbar,150,14,291,"I2C: SIN ENLACE",SUB);
  btn(toolbar,520,4,137,38,"PARADA",RED,STOP);
  lv_obj_t* foot=panel(root,134,442,666,38,BASE);
  lv_obj_set_style_radius(foot,0,0);
- notice=label(foot,10,10,642,"MODO DEMO: todos los botones son visuales. No mueve motores.",CYAN);
+ notice=label(foot,10,10,642,"Conectando controlador de motores...",CYAN);
 }
 void make_home(){
  lv_obj_t* p=pages[0];
@@ -214,12 +163,12 @@ void make_home(){
   const int x=(i==0)?5:336;
   lv_obj_t* card=panel(p,x,4,325,229,CELL);
   label(card,12,11,288,i==0?"Z1  |  CONDUCTIVO":"Z2  |  ESTRUCTURAL",TEXT,true);
-  label(card,12,41,287,"DRIVER: SIN CONECTAR (DEMO)",SUB);
+  axisText[i]=label(card,12,41,287,"TMC2209: verificando",SUB);
   btn(card,12,72,146,48,"SUBIR",BLUE,i==0?Z1_UP:Z2_UP);
   btn(card,168,72,145,48,"BAJAR",BLUE,i==0?Z1_DOWN:Z2_DOWN);
   btn(card,12,132,146,48,"IR A REPOSO",GREEN,i==0?Z1_REST:Z2_REST);
   btn(card,168,132,145,48,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
-  label(card,12,197,300,"Alturas: pendientes de sincronizar",SUB);
+  positionText[i]=label(card,12,197,300,"Posicion: sin referencia",SUB);
  }
  lv_obj_t* speed=panel(p,5,244,656,84,PANEL);
  speedLabel=label(speed,14,6,600,"Velocidad: 1600 micropasos/s",TEXT);
@@ -229,6 +178,7 @@ void make_home(){
  lv_slider_set_range(sl,80,8000);
  lv_slider_set_value(sl,1600,LV_ANIM_OFF);
  lv_obj_add_event_cb(sl,on_speed,LV_EVENT_VALUE_CHANGED,nullptr);
+ lv_obj_add_event_cb(sl,on_speed,LV_EVENT_RELEASED,nullptr);
 }
 void make_calibration(){
  lv_obj_t* p=pages[1];
@@ -240,7 +190,7 @@ void make_calibration(){
  wizardChoice[2]=btn(wizardPick,442,94,197,60,"AMBOS",BLUE,PICK_BOTH);
  btn(wizardPick,16,176,623,59,"INICIAR SISTEMA",GREEN,BEGIN);
  label(wizardPick,16,254,621,"AMBOS: copia los valores de Z1 a Z2.",SUB);
- label(wizardPick,16,276,621,"SIN MOTORES: aqui solo se prueba el tactil.",SUB);
+ label(wizardPick,16,276,621,"El controlador confirmara cada altura guardada.",SUB);
  wizardWork=panel(p,5,4,655,330,PANEL);
  wizardStepLabel=label(wizardWork,16,13,450,"Z1 - DISPENSACION",CYAN,true);
  wizardProgress=label(wizardWork,481,17,160,"PASO 1 DE 2",SUB);
@@ -250,9 +200,9 @@ void make_calibration(){
  btn(wizardWork,16,223,190,57,"CANCELAR",RED,WIZ_CANCEL);
  btn(wizardWork,221,223,418,57,"OK  -  GUARDAR POSICION",GREEN,WIZ_OK);
  wizardDone=panel(p,5,4,655,330,PANEL);
- label(wizardDone,20,30,618,"CONFIGURACION DE PRUEBA TERMINADA",CYAN,true);
- label(wizardDone,20,105,614,"Esta ha sido una simulacion tactil.",TEXT);
- label(wizardDone,20,139,614,"No hay posiciones reales guardadas ni motores conectados.",SUB);
+ label(wizardDone,20,30,618,"CONFIGURACION COMPLETADA",CYAN,true);
+ label(wizardDone,20,105,614,"Calibracion registrada en el controlador.",TEXT);
+ label(wizardDone,20,139,614,"Verificar referencia de los ejes antes de mover.",SUB);
  btn(wizardDone,20,217,294,61,"REPETIR",BLUE,WIZ_RESTART);
  btn(wizardDone,331,217,304,61,"CONTROL Z",GREEN,WIZ_HOME);
  wizard_render();
@@ -261,10 +211,10 @@ void make_origin(){
  lv_obj_t* p=pages[2];
  lv_obj_t* a=panel(p,5,4,655,330,PANEL);
  label(a,16,18,619,"BUSQUEDA DE ORIGEN  |  StallGuard4",CYAN,true);
- label(a,16,66,625,"En la prueba de pantalla no hay motores ni bus UART.",TEXT);
- label(a,16,101,625,"Deteccion de carga y busqueda: DESHABILITADAS.",SUB);
- btn(a,16,157,623,60,"VERIFICAR BOTON (DEMO)",BLUE,ORIGIN_TEST);
- label(a,16,248,623,"El contacto con el tope no se prueba desde esta pantalla.",SUB);
+ label(a,16,66,625,"La deteccion de origen requiere validacion mecanica.",TEXT);
+ label(a,16,101,625,"StallGuard4 no sustituye los limites de seguridad.",SUB);
+ btn(a,16,157,623,60,"VER DISPONIBILIDAD",BLUE,ORIGIN_TEST);
+ label(a,16,248,623,"Busqueda automatica bloqueada hasta validar StallGuard4.",SUB);
 }
 void make_diag(){
  lv_obj_t* p=pages[3];
@@ -272,8 +222,8 @@ void make_diag(){
  label(a,16,14,615,"DIAGNOSTICO DE PANTALLA",CYAN,true);
  label(a,16,59,618,"PANTALLA RGB: 800 x 480  |  LVGL 9.1",TEXT);
  label(a,16,93,618,"TACTIL GT911: prueba tocando los controles.",TEXT);
- label(a,16,127,618,"COMUNICACION CON MOTORES: SIN CONECTAR",SUB);
- label(a,16,161,618,"SALIDAS MOTORES: DESHABILITADAS",SUB);
+ label(a,16,127,618,"COMUNICACION: I2C cable 0x32",SUB);
+ label(a,16,161,618,"PROTECCIONES: gestionadas por ESP32 Z",SUB);
  touchDiag=label(a,16,196,620,"GT911: comprobando direccion I2C",CYAN);
  touchCoords=label(a,16,258,620,"ULTIMO TOQUE: ninguno",SUB);
  counterLabel=label(a,16,228,617,"TOQUES DETECTADOS: 0",CYAN,true);
@@ -294,7 +244,7 @@ void valver_ui_init(){
  make_origin();
  make_diag();
  show_page(0);
- show_notice("VALVER: pantalla inicializada. MODO DEMO SIN MOTORES.");
+ show_notice("VALVER SMART DISPENSER: comprobando controlador...");
 }
 void valver_ui_set_touch_status(uint8_t i2c_address){
  char str[100];
@@ -316,7 +266,6 @@ void valver_ui_note_touch(int x,int y){
  }
 }
 void valver_ui_tick(){
- // Maintain a cheap tick hook for future UART integration.
+ pollMotors();
  lastTick=millis();
- (void)lastTick;
 }
