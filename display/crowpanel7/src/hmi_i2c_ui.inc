@@ -10,6 +10,8 @@ static uint8_t lastCriticalPacket[9]={0};
 static uint8_t startRetryCount=0;
 static uint32_t startRetryAt=0;
 static int32_t startPosition=0;
+static bool startPending=false;
+static uint32_t startSentAt=0;
 static lv_obj_t *connectionText=nullptr,*driverText=nullptr;
 static lv_obj_t *axisText[2]={nullptr,nullptr},*positionText[2]={nullptr,nullptr};
 static int32_t readInt32(const uint8_t* p){
@@ -35,12 +37,12 @@ static bool sendMotor(uint8_t op,uint8_t axis=0,uint8_t arg=0,uint16_t value=0,b
  return true;
 }
 static void motorStop(){
- held=false;moving=false;autoRunning=false;holdOwned=false;waitingOp=0;
+ held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;waitingOp=0;
  show_notice(sendMotor(2)?"PARADA enviada":"SIN ENLACE: comprobar parada fisica");
 }
 static void motorRelease(){
- const bool needStop=held||moving||(motorFlags&1)||waitingOp==3||waitingOp==4;
- held=false;
+ const bool needStop=held||startPending||moving||(motorFlags&1)||waitingOp==3||waitingOp==4;
+ held=false;startPending=false;
  if(needStop){
   // Acknowledge HOLD_STOP before accepting another press. This also works
   // when the finger is released while PREPARE/HOLD_START is still pending.
@@ -124,7 +126,7 @@ static void pollMotors(){
  if(count!=32||rx[0]!=0x56||rx[1]!=1){
   badReadCount++;
   if(now-lastLink>500&&motorOnline){
-   motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;waitingOp=0;
+   motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;waitingOp=0;
    if(connectionText)lv_label_set_text(connectionText,"I2C: SIN ENLACE");
    if(driverText)lv_label_set_text(driverText,"DESCONECTADO");
    show_notice("Enlace perdido: movimiento bloqueado");
@@ -134,17 +136,14 @@ static void pollMotors(){
  const bool wasOnline=motorOnline;
  motorOnline=true;lastLink=now;motorFlags=rx[5];
  lastRemoteAck=rx[2];lastRemoteStatus=rx[3];
- // The command response can lag one transaction under load. Independently
- // verify manual start through the reported active axis and step progression.
- // This requires: original touch still pressed, a pending HOLD_START, same
- // axis, non-automatic motion and a changed relative motor step counter.
- if(waitingOp==4 && held && (motorFlags&1) && !(motorFlags&2) &&
-    rx[7]==heldAxis && rx[2]!=waitingSeq &&
-    readInt32(rx+8+4*(heldAxis-1))!=startPosition){
-    Serial.printf("[I2C] HOLD_START state-confirmed axis=%u seq=%u remote_ack=%u\n",
-       (unsigned)heldAxis,(unsigned)waitingSeq,(unsigned)rx[2]);
-    waitingOp=0;moving=true;holdOwned=true;
-    show_notice("Motor en marcha: estado verificado por controlador");
+ // Confirm the axis is actually running via the motor-controller state,
+ // never by accepting an unverified write as proof of movement.
+ if(startPending && held && (motorFlags&1) && !(motorFlags&2) &&
+    rx[7]==heldAxis){
+   startPending=false;moving=true;holdOwned=true;
+   Serial.printf("[I2C] MANUAL active axis=%u position=%ld\n",
+     (unsigned)heldAxis,(long)readInt32(rx+8+4*(heldAxis-1)));
+   show_notice("Eje activo; soltar para detener");
  }
  if(waitingOp&&rx[2]==waitingSeq){
   const uint8_t op=waitingOp;waitingOp=0;
@@ -157,11 +156,18 @@ static void pollMotors(){
    held=false;moving=false;show_notice(msg);
   }else if(rx[3]==1){
    if(op==3&&held){
-     // Capture the last idle position before the requested HOLD_START.
-     // A subsequent active status AND progressed step count can safely
-     // prove execution even if the I2C acknowledgement is delayed.
+     // HOLD_START is issued once while the finger remains down. The
+     // controller validates it; the HMI does NOT wait for its delayed ACK.
+     // A live deadman heartbeat is sent while pressed, and the live axis
+     // state is checked before showing the motor as moving.
      startPosition=readInt32(rx+8+4*(heldAxis-1));
-     if(!sendMotor(4,heldAxis,heldUp,0,true))held=false;
+     startPending=true;
+     startSentAt=millis();
+     if(!sendMotor(4,heldAxis,heldUp,0,false)){
+       startPending=false;held=false;
+       sendMotor(2);
+       show_notice("Fallo de escritura al arrancar: PARADA");
+     }
     }
    else if(op==4){if(held){moving=true;holdOwned=true;}else sendMotor(5);}
    else if(op==10){
@@ -183,30 +189,20 @@ static void pollMotors(){
   }
  }
  if(!wasOnline)show_notice("Controlador conectado por cable I2C");
- // HOLD_START may be received while the controller is servicing its UART
- // and stepping loop. Retry only WHILE the operator keeps the button pressed,
- // with exactly the same sequence number (idempotent at the motor controller).
- if(waitingOp==4 && held && startRetryCount<2 &&
-    (uint32_t)(now-startRetryAt)>=190){
-   Wire1.beginTransmission(MOTOR_I2C);
-   Wire1.write(lastCriticalPacket,sizeof(lastCriticalPacket));
-   const uint8_t rc=Wire1.endTransmission();
-   startRetryAt=now;
-   startRetryCount++;
-   Serial.printf("[I2C] HOLD_START retry=%u seq=%u write=%u\n",
-       (unsigned)startRetryCount,(unsigned)waitingSeq,(unsigned)rc);
+ // Manual movement is held only by continuous touch and watchdog beats.
+ // This is independent of the lagging reply sequence on HOLD_START.
+ if(held && (startPending||moving) && (uint32_t)(now-lastBeat)>=90){
+    sendMotor(6);lastBeat=now;
  }
- // If the motor did start but its response is delayed, refresh its deadman
- // before timeout. Never send movement heartbeats unless the finger is down
- // AND the controller independently reports that an axis is active.
- if(waitingOp==4 && held && (motorFlags&1) && (uint32_t)(now-lastBeat)>=90){
-   sendMotor(6);
-   lastBeat=now;
+ if(startPending && (uint32_t)(now-startSentAt)>650){
+    startPending=false;held=false;moving=false;holdOwned=false;
+    sendMotor(2);
+    show_notice("Eje no confirmado: PARADA automatica");
  }
  // A missing ACK must never lock the touch interface indefinitely.
  if(waitingOp && (uint32_t)(now-waitingSince)>850){
   const uint8_t timedOutOp=waitingOp,timedOutSeq=waitingSeq;
-  waitingOp=0;held=false;moving=false;autoRunning=false;holdOwned=false;
+  waitingOp=0;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
   sendMotor(2);
   char details[140];
   snprintf(details,sizeof(details),
@@ -216,7 +212,13 @@ static void pollMotors(){
    (unsigned long)badReadCount);
   show_notice(details);
  }
- if((motorFlags&1)&&((held&&moving)||autoRunning)&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
+ if((motorFlags&1)&&autoRunning&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
  else if(holdOwned&&(motorFlags&12)&&now-lastBeat>=150){sendMotor(7);lastBeat=now;}
- if(!(motorFlags&1)){moving=false;autoRunning=false;}
+ if(!(motorFlags&1)){
+    if(moving && held && !startPending) {
+      held=false;holdOwned=false;
+      show_notice("Motor detenido por controlador: revisar watchdog");
+    }
+    moving=false;autoRunning=false;
+  }
 }
