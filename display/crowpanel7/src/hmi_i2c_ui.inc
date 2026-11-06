@@ -12,6 +12,7 @@ static uint32_t startRetryAt=0;
 static int32_t startPosition=0;
 static bool startPending=false;
 static uint32_t startSentAt=0;
+static bool startUnconfirmedNotice=false;
 static lv_obj_t *connectionText=nullptr,*driverText=nullptr;
 static lv_obj_t *axisText[2]={nullptr,nullptr},*positionText[2]={nullptr,nullptr};
 static int32_t readInt32(const uint8_t* p){
@@ -37,12 +38,13 @@ static bool sendMotor(uint8_t op,uint8_t axis=0,uint8_t arg=0,uint16_t value=0,b
  return true;
 }
 static void motorStop(){
- held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;waitingOp=0;
+ held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
+ startUnconfirmedNotice=false;waitingOp=0;
  show_notice(sendMotor(2)?"PARADA enviada":"SIN ENLACE: comprobar parada fisica");
 }
 static void motorRelease(){
  const bool needStop=held||startPending||moving||(motorFlags&1)||waitingOp==3||waitingOp==4;
- held=false;startPending=false;
+ held=false;startPending=false;startUnconfirmedNotice=false;
  if(needStop){
   // Acknowledge HOLD_STOP before accepting another press. This also works
   // when the finger is released while PREPARE/HOLD_START is still pending.
@@ -126,7 +128,8 @@ static void pollMotors(){
  if(count!=32||rx[0]!=0x56||rx[1]!=1){
   badReadCount++;
   if(now-lastLink>500&&motorOnline){
-   motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;waitingOp=0;
+   motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
+   startUnconfirmedNotice=false;waitingOp=0;
    if(connectionText)lv_label_set_text(connectionText,"I2C: SIN ENLACE");
    if(driverText)lv_label_set_text(driverText,"DESCONECTADO");
    show_notice("Enlace perdido: movimiento bloqueado");
@@ -140,7 +143,7 @@ static void pollMotors(){
  // never by accepting an unverified write as proof of movement.
  if(startPending && held && (motorFlags&1) && !(motorFlags&2) &&
     rx[7]==heldAxis){
-   startPending=false;moving=true;holdOwned=true;
+   startPending=false;startUnconfirmedNotice=false;moving=true;holdOwned=true;
    Serial.printf("[I2C] MANUAL active axis=%u position=%ld\n",
      (unsigned)heldAxis,(long)readInt32(rx+8+4*(heldAxis-1)));
    show_notice("Eje activo; soltar para detener");
@@ -162,6 +165,7 @@ static void pollMotors(){
      // state is checked before showing the motor as moving.
      startPosition=readInt32(rx+8+4*(heldAxis-1));
      startPending=true;
+     startUnconfirmedNotice=false;
      startSentAt=millis();
      if(!sendMotor(4,heldAxis,heldUp,0,false)){
        startPending=false;held=false;
@@ -194,10 +198,15 @@ static void pollMotors(){
  if(held && (startPending||moving) && (uint32_t)(now-lastBeat)>=90){
     sendMotor(6);lastBeat=now;
  }
- if(startPending && (uint32_t)(now-startSentAt)>650){
-    startPending=false;held=false;moving=false;holdOwned=false;
-    sendMotor(2);
-    show_notice("Eje no confirmado: PARADA automatica");
+ // The I2C slave can report the previous state while a TMC2209 is
+ // starting. Do not issue a false disable because one status was delayed.
+ // This HMI remains hold-to-run: releasing the finger sends HOLD_STOP,
+ // the motor ESP32 watchdog stops in 350 ms without heartbeats,
+ // and loss of the I2C link still locks new movements.
+ if(startPending && held && !startUnconfirmedNotice &&
+    (uint32_t)(now-startSentAt)>650){
+    startUnconfirmedNotice=true;
+    show_notice("Arranque pendiente de confirmar; soltar para detener");
  }
  // A missing ACK must never lock the touch interface indefinitely.
  if(waitingOp && (uint32_t)(now-waitingSince)>850){
