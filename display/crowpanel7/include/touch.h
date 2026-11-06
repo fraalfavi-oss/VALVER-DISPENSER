@@ -66,14 +66,11 @@ bool touch_init(){
  return true;
 }
 bool touch_touched(){
- static uint32_t last_sample=0,last_retry=0,last_log=0;
+ static uint32_t last_sample=0,last_log=0;
  const uint32_t now=millis();
  if(now-last_sample<25)return touch_is_pressed;
  last_sample=now;
- if(!touch_available){
-  if(now-last_retry>2500){last_retry=now;touch_init();}
-  return false;
- }
+ if(!touch_available)return false; // Do not block display refresh with I2C retries.
 
  uint8_t status=0;
  if(!gt911_read_addr(touch_address,GT911_POINT_INFO,&status,1)){
