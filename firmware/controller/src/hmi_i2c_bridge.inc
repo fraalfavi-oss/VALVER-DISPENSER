@@ -127,13 +127,7 @@ void hmiExecute(const HmiWireCommand& request) {
   hmiDispatchError[0]=0;
   dispatch(json); // reuse the USB controller's exact safeguards
   hmiDispatching=false;
-  if(wantsAck && op==4){
-    hmiHasProcessedStart=true;
-    hmiLastProcessedStartSeq=p[2];
-    hmiLastProcessedStartMs=millis();
-    Serial.printf("[I2C] HOLD_START processed seq=%u axis=%u active=%u rejected=%u\n",
-      p[2],axis,trial.active?1:0,hmiDispatchRejected?1:0);
-  }
+  // Publish transaction ACK immediately, before any optional logging.
   if(wantsAck) {
     hmiAckSeq=p[2]; hmiAckResult=hmiDispatchRejected?2:1;
     hmiError=hmiDispatchRejected?1:0;
@@ -142,6 +136,13 @@ void hmiExecute(const HmiWireCommand& request) {
       hmiReason[16]=0;
     } else hmiReason[0]=0;
   }
+  if(wantsAck && op==4) {
+    hmiHasProcessedStart=true;
+    hmiLastProcessedStartSeq=p[2];
+    hmiLastProcessedStartMs=millis();
+  }
+  hmiRefresh(); // publish before the next I2C master read
+  // No Serial.printf here: USB logging must not delay the stepper deadman.
 }
 void hmiService() {
   HmiWireCommand job{};
