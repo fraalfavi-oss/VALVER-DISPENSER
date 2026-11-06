@@ -7,6 +7,8 @@
 #include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 #include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
 #include <lvgl.h>
+#include <esp_heap_caps.h>
+#include <cstring>
 #include "soc/soc.h"
 #include "soc/io_mux_reg.h"
 #include "soc/usb_serial_jtag_reg.h"
@@ -56,9 +58,10 @@ public:
         bus_config.pin_vsync = GPIO_NUM_40;
         bus_config.pin_hsync = GPIO_NUM_39;
         bus_config.pin_pclk = GPIO_NUM_0;
-        // V3.0 tested LCD timing is 15 MHz. 24 MHz can starve RGB DMA
-        // during touch I2C reads and produce visible flicker/tearing.
-        bus_config.freq_write = 15000000;
+        // 20 MHz gives about 41 RGB refreshes/s with these panel porches.
+        // The previous 15 MHz mode only refreshed at about 31 Hz.
+        // Keep enough PSRAM/EDMA headroom rather than returning to 24 MHz.
+        bus_config.freq_write = 20000000;
         bus_config.hsync_polarity = 0;
         bus_config.hsync_front_porch = 40;
         bus_config.hsync_pulse_width = 48;
@@ -98,6 +101,20 @@ namespace
 constexpr uint8_t   BACKLIGHT_PIN = 2;
 constexpr uint32_t  SCREEN_WIDTH = 800;
 constexpr uint32_t  SCREEN_HEIGHT = 480;
+constexpr size_t FRAME_BYTES = (size_t)SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(uint16_t);
+constexpr uint32_t LVGL_DRAW_LINES = 32;
+constexpr size_t LVGL_DRAW_BYTES = (size_t)SCREEN_WIDTH * LVGL_DRAW_LINES * sizeof(uint16_t);
+
+// Keep the RGB DMA front framebuffer completely separate from LVGL rendering.
+// The driver owns two full-screen PSRAM buffers. LVGL paints only a 32-line
+// scratch buffer in internal RAM. Only finished images reach RGB on VSYNC.
+uint8_t *rgb_front = nullptr;
+uint8_t *rgb_back = nullptr;
+uint8_t *lvgl_scratch = nullptr;
+bool rgb_frame_open = false;
+uint32_t rgb_present_ok = 0;
+uint32_t rgb_present_errors = 0;
+uint32_t rgb_last_error_log = 0;
 
 
 /**
@@ -121,9 +138,49 @@ uint32_t tick_get()
  */
 void display_flush(lv_display_t *display, const lv_area_t *area, uint8_t *pixel_map)
 {
-    (void)area;
-    if(!lcd.bus.presentFrameBuffer(pixel_map)) {
-        Serial.println("LovyanGFX VSYNC frame switch timeout");
+    if(!rgb_front || !rgb_back || !pixel_map){
+        lv_display_flush_ready(display);
+        return;
+    }
+    // The screen keeps scanning rgb_front unchanged while LVGL draws the
+    // updated rectangles into rgb_back. Copy the previous completed frame
+    // first so unchanged pixels never blink or revert to an old image.
+    if(!rgb_frame_open){
+        memcpy(rgb_back, rgb_front, FRAME_BYTES);
+        rgb_frame_open = true;
+    }
+
+    const int x1=area->x1, y1=area->y1, x2=area->x2, y2=area->y2;
+    if(x1>=0 && y1>=0 && x2<(int)SCREEN_WIDTH &&
+       y2<(int)SCREEN_HEIGHT && x1<=x2 && y1<=y2){
+        const size_t row_bytes=(size_t)(x2-x1+1)*sizeof(uint16_t);
+        uint8_t *dst=rgb_back+((size_t)y1*SCREEN_WIDTH+x1)*sizeof(uint16_t);
+        for(int row=0;row<=y2-y1;row++){
+            memcpy(dst+(size_t)row*SCREEN_WIDTH*sizeof(uint16_t),
+                   pixel_map+(size_t)row*row_bytes,row_bytes);
+        }
+    }
+
+    // Commit exactly ONCE after the last LVGL rectangle, when the entire
+    // back framebuffer is ready. The RGB driver flips on VSYNC.
+    if(lv_display_flush_is_last(display)){
+        const bool presented=lcd.bus.presentFrameBuffer(rgb_back, 150);
+        if(presented){
+            uint8_t *old_front=rgb_front;
+            rgb_front=rgb_back;
+            rgb_back=old_front;
+            rgb_present_ok++;
+        }else{
+            rgb_present_errors++;
+            const uint32_t now=millis();
+            if(now-rgb_last_error_log>2500){
+                rgb_last_error_log=now;
+                Serial.printf("[RGB] VSYNC timeout; OK=%lu ERR=%lu\n",
+                  (unsigned long)rgb_present_ok,
+                  (unsigned long)rgb_present_errors);
+            }
+        }
+        rgb_frame_open=false;
     }
     lv_display_flush_ready(display);
 }
@@ -204,20 +261,30 @@ void setup()
     const bool touch_ready=ready_i2c?touch_init():false;
     if(!ready_i2c)Serial.println("[TOUCH] GT911 omitido: I2C no inicializado");
 
-    lv_color_t *frame_buffer_0 = reinterpret_cast<lv_color_t *>(lcd.bus.getFrameBuffer(0));
-    lv_color_t *frame_buffer_1 = reinterpret_cast<lv_color_t *>(lcd.bus.getFrameBuffer(1));
-    Serial.printf("RGB frame buffers: %p, %p\n", frame_buffer_0, frame_buffer_1);
-    if(frame_buffer_0 == nullptr || frame_buffer_1 == nullptr) {
-        Serial.println("RGB double frame buffer allocation failed");
+    rgb_front=static_cast<uint8_t *>(lcd.bus.getFrameBuffer(0));
+    rgb_back=static_cast<uint8_t *>(lcd.bus.getFrameBuffer(1));
+    Serial.printf("[RGB] PSRAM framebuffer A=%p B=%p\n",rgb_front,rgb_back);
+    if(!rgb_front || !rgb_back) {
+        Serial.println("[RGB] ERROR: double framebuffer allocation failed");
         return;
     }
+    // The temporary LVGL buffer is in *internal* memory. It is not a panel
+    // framebuffer: LVGL can never draw over a frame currently being scanned.
+    lvgl_scratch=static_cast<uint8_t *>(
+        heap_caps_malloc(LVGL_DRAW_BYTES, MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    if(!lvgl_scratch){
+        Serial.printf("[RGB] ERROR: internal LVGL scratch %u bytes failed\n",
+                      (unsigned)LVGL_DRAW_BYTES);
+        return;
+    }
+    Serial.printf("[RGB] RGB565 PARTIAL 32 lines; LVGL scratch=%p (%u bytes)\n",
+                  lvgl_scratch,(unsigned)LVGL_DRAW_BYTES);
 
     lv_display_t *display = lv_display_create(lcd.width(), lcd.height());
     lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB565);
     lv_display_set_flush_cb(display, display_flush);
-    lv_display_set_buffers(display, frame_buffer_0, frame_buffer_1,
-                           SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(lv_color_t),
-                           LV_DISPLAY_RENDER_MODE_FULL);
+    lv_display_set_buffers(display, lvgl_scratch, nullptr,
+                           LVGL_DRAW_BYTES, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     lv_indev_t *touchpad = lv_indev_create();
     lv_indev_set_type(touchpad, LV_INDEV_TYPE_POINTER);
@@ -228,7 +295,7 @@ void setup()
 
     valver_ui_init();
     valver_ui_set_touch_status(touch_ready ? touch_address : 0);
-    Serial.printf("[DISPLAY] VALVER 800x480, RGB 15MHz, GT911 %s\n",
+    Serial.printf("[DISPLAY] VALVER 800x480, RGB 20MHz, partial+VSYNC, GT911 %s\n",
                   touch_ready ? "OK" : "NO DETECTADO");
 }
 
