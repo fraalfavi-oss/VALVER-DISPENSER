@@ -1,0 +1,406 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VALVER · Control Z</title><style>
+*{box-sizing:border-box}body{margin:0;background:#091522;color:#edf5ff;font:13px Arial,sans-serif}
+main{width:800px;min-height:480px;max-width:100%;margin:14px auto;background:#112033;border:1px solid #324860;border-radius:10px;overflow:hidden}
+header{height:52px;background:#071727;display:flex;align-items:center;padding:8px 15px;gap:13px}
+h1{font-size:27px;margin:0}header small{font-size:10px;line-height:1.5;color:#a9c3dc}header .divider{height:30px;border-left:2px solid #268cdd}
+#state{margin-left:auto;font-size:12px;color:#ffb1b9;text-align:right;max-width:155px}
+.layout{display:grid;grid-template-columns:108px minmax(0,1fr);gap:10px;padding:8px}
+nav{background:#1c2c40;border-radius:10px;min-height:390px;padding:6px;display:flex;flex-direction:column;gap:6px}
+button{background:#26435d;color:#eaf5ff;border:1px solid #42627d;border-radius:7px;padding:8px 5px;cursor:pointer;font-weight:bold;font-size:11px}
+button:disabled{opacity:.35;cursor:not-allowed}button:not(:disabled):hover{background:#356889}
+nav button{height:40px}nav button.active{border-color:#4ac1f6;background:#236286}
+.safe{font-size:9px;text-align:center;color:#f5aab5;background:#4c2938;border-radius:7px;margin-top:auto;padding:10px 4px}
+.workspace{min-width:0}.topline{display:flex;gap:7px;align-items:center;margin-bottom:9px;flex-wrap:wrap}
+.topline button{padding:8px 9px}.state-pill{padding:7px 9px;background:#27445c;border-radius:6px;font-size:10px}
+.channels{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#1b3047;border:2px solid #355670;border-radius:12px;padding:10px;min-width:0;height:225px}
+.speed-control{background:#1b3047;border:1px solid #355670;border-radius:8px;margin-top:7px;padding:6px 10px}.speed-control label{font-size:11px;display:block}.speed-control input{width:100%;accent-color:#55c6ef;cursor:pointer;margin:5px 0 0}.load-monitor{background:#10263b;border:1px solid #426b88;border-radius:9px;padding:10px;margin-top:8px}.load-monitor .load-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.load-monitor .load-head b{font-size:13px}.load-monitor .load-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:9px 0}.load-monitor .metric{background:#1a344e;border-radius:7px;padding:8px}.load-monitor .metric strong{display:block;font-size:24px;line-height:1.2;color:#e9fbff}.load-monitor .metric small{color:#a9c8db;font-size:10px}.load-monitor .track{background:#0b1c2e;height:12px;border-radius:8px;overflow:hidden;border:1px solid #375471}.load-monitor .fill{height:100%;width:0;background:linear-gradient(90deg,#31c7a4,#ebba50,#e96b61);transition:width .18s}.load-monitor canvas{display:block;width:100%;height:94px;background:#0c1e31;border-radius:6px;margin-top:8px}.load-monitor .caption{font-size:10px;color:#accbdc;line-height:1.4;margin:6px 0 0}.load-monitor .load-suggestion{margin-top:7px;display:flex;align-items:center;justify-content:space-between;gap:9px;font-size:11px}.load-monitor .load-suggestion button{flex-shrink:0}.load-check{margin-top:10px;padding:9px;background:#162e46;border:1px solid #355875;border-radius:7px;font-size:11px;line-height:1.5}.load-check p{margin:4px 0 7px;color:#b2d0e2}.load-check-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:7px}.load-check-grid>div{background:#0d2236;padding:7px;border-radius:5px}.load-check button{margin-top:8px}.load-monitor .load-badge{font-size:10px;color:#b7d2e4}.stall-control{background:#1b3047;border:1px solid #355670;border-radius:8px;margin-top:7px;padding:9px}.stall-control .stall-top{display:flex;justify-content:space-between;gap:8px;margin-bottom:5px;font-size:11px}.stall-control label{font-size:11px}.stall-control input{width:100%;accent-color:#f4b959;margin:7px 0}.fine-row{display:flex;align-items:center;gap:6px}.fine-row input[type="range"]{flex:1;min-width:20px}.fine-row input[type="number"]{width:68px;min-width:68px;background:#112439;color:#eaf5ff;border:1px solid #49718d;border-radius:6px;padding:6px}.fine-row button{width:29px;flex-shrink:0;font-size:17px;padding:4px}.stall-control .row{margin:3px 0}.stall-control p{margin:6px 0 0}.card.selected{border-color:#5de1b0;box-shadow:inset 0 0 0 1px #a1f5d4}
+.card.locked{opacity:.53}h2{font-size:19px;margin:2px 0 5px}
+.muted{font-size:10px;color:#a8c0d6}.row{display:flex;gap:6px;margin-top:7px}
+.row button{flex:1;min-width:0}.choose{width:100%;background:#214a6c;margin-top:10px}
+.card.selected .choose{background:#176d5c}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.panel{background:#1b3047;border-radius:9px;padding:11px;min-height:81px}
+.panel h3{font-size:12px;margin:0 0 5px}.panel p{font-size:10px;color:#acc0d5;margin:3px 0}
+.panel button{width:100%;margin-top:4px}.toolbar{display:flex;gap:7px;align-items:center;margin:8px 0}
+.toolbar button{padding:8px 10px}.stop{background:#862f48}.arm{background:#196e55}
+#confirmLine{display:block;font-size:10px;margin:5px 0;color:#e4bf8a}
+#log{height:67px;background:#071624;color:#a7efcf;overflow:auto;font:10px/1.3 Consolas,monospace;white-space:pre-wrap;padding:6px;border-radius:5px;margin:5px 0 0}
+.cold-panel{margin:0 0 10px;background:#263142;border:1px solid #f1b65d;border-radius:9px;padding:12px;color:#f5e7d0}
+.cold-panel h3{margin:0 0 5px;color:#ffd48d;font-size:15px}
+.cold-panel p{font-size:11px;line-height:1.5;margin:5px 0}
+.cold-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+#coldResult{font-size:11px;font-weight:bold;color:#e9bf82;flex:1}
+.cold-table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0}
+.cold-table th,.cold-table td{border-bottom:1px solid #536273;text-align:left;padding:5px}
+.cold-checks{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+.cold-checks label{font-size:10px;line-height:1.4;display:flex;gap:5px;align-items:flex-start;color:#f6e5d5}
+.cold-checks input{accent-color:#f0bd72;margin:2px 2px 0 0}
+#coldCounter{display:block;font-size:10px;color:#f0c581;margin-top:9px}
+.cold-status-grid{display:grid;grid-template-columns:1fr;gap:5px;margin:10px 0}
+.cold-status-grid>div{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:7px;background:#10283b;border-radius:6px;font-size:11px}
+.cold-status-grid strong{font-size:10px;color:#f0c581;text-align:right}
+.rgb-pin-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;color:#b7d9ed;padding:8px 0}
+.rgb-pin-row .rgb-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.rgb-pin-row .rgb-blue{background:#328bff}
+.rgb-pin-row .rgb-red{background:#f04949}
+.rgb-pin-row select{background:#102941;border:1px solid #426984;border-radius:5px;color:#d9f3ff;padding:5px 8px}
+.rgb-pin-row small{color:#92b7cb}
+.speed-box{margin:12px 0 14px;background:#0b273d;border:1px solid #365f7d;border-radius:9px;padding:12px}
+.speed-caption{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:650}
+.speed-caption strong{color:#8fddfa}
+#holdSpeed{width:100%;height:26px;accent-color:#55c0eb;cursor:pointer;margin:8px 0 3px}
+#holdSpeed:disabled{opacity:.5;cursor:default}
+.speed-ends{display:flex;justify-content:space-between;font-size:11px;color:#a4bdcc}
+#holdSpeedInfo{display:block;font-size:10px;color:#aed4e6;margin-top:6px}
+.simple-axes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}
+.axis-simple{background:#0c263b;border:1px solid #376483;border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:9px}
+.axis-simple strong{font-size:13px;color:#e3f6ff}.axis-status{font-size:10px;color:#e7c47b}
+.axis-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.axis-buttons button{padding:9px 5px;font-size:12px;background:#225a78;min-height:42px}
+.axis-goto{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.axis-goto button{min-height:42px;padding:7px 4px;font-size:11px;background:#17665a;touch-action:manipulation}
+.axis-goto button:disabled{background:#304655;opacity:.48}
+.axis-ref{font-size:10px;color:#e9b879}
+.axis-ref.is-ready{color:#9be6bc}
+.axis-simple{padding:9px;gap:6px}
+.simple-axes{gap:8px;margin:7px 0}
+.speed-box{margin:7px 0!important;padding:9px!important}
+.height-cal{margin:7px 0 8px!important;padding:0!important}
+.height-cal>summary{padding:11px 10px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none;min-height:40px;font-size:12px;touch-action:manipulation}
+.height-cal>summary::-webkit-details-marker{display:none}
+.height-cal>summary::before{content:"▸";color:#87cbed;margin-right:5px}
+.height-cal[open]>summary::before{content:"▾"}
+.height-cal>summary small{font-size:10px;font-weight:400;color:#a3d2e6;text-align:right}
+.height-cal-body{padding:4px 10px 10px}
+.height-reference{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:8px 0;border-top:1px solid #2f526f}
+.height-reference button{min-height:42px;background:#665230;font-size:11px;touch-action:manipulation}
+.height-cal{margin:10px 0 14px;border:1px solid #355b78;background:#10283b;padding:10px;border-radius:8px}
+.height-heading{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;color:#d5edfd;font-size:12px;margin-bottom:8px}
+.height-heading small{color:#a5c1d1;font-weight:400}
+.height-row{display:grid;grid-template-columns:26px minmax(56px,1fr) minmax(99px,1.2fr) minmax(45px,.6fr) minmax(116px,1.4fr) minmax(45px,.6fr) 28px;align-items:center;gap:5px;margin-bottom:6px;font-size:11px}
+.height-row button{padding:7px 4px;font-size:10px;border-radius:6px;background:#225b78;white-space:nowrap}
+.height-row button.height-clear{background:#5c3441;font-size:14px;padding:5px 3px}
+.height-row>span{color:#a9d6ef}
+.height-cal>small{display:block;font-size:10px;line-height:1.4;color:#a0bfce;padding-top:4px}
+.height-shared{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0 7px;border-top:1px solid #355b78;margin-top:7px;font-size:11px}
+.height-shared label{color:#c2e1f1;font-size:11px}
+.height-shared input{width:90px;background:#0c2234;color:#e7f6ff;border:1px solid #4a6f85;border-radius:5px;padding:6px;margin-left:5px}
+.height-shared button{background:#275e81;padding:8px;font-size:11px;border-radius:6px}
+.height-shared button:disabled{opacity:.5}
+.height-shared .touch-label{font-size:11px;font-weight:700;color:#c9eaf8}
+.height-shared input.touch-value{width:110px;min-height:46px;font-size:21px;text-align:center;font-weight:700;color:#fff;border:2px solid #5ebff0;cursor:pointer;touch-action:manipulation}
+.touch-steps{display:flex;gap:5px;flex-wrap:wrap}
+.touch-steps button{min-width:51px;min-height:44px;font-size:13px;background:#214c6b;touch-action:manipulation}
+.touch-shared-actions{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.touch-shared-actions button{flex:1 1 135px;min-height:46px;font-size:11px;background:#1f6180;touch-action:manipulation}
+.touch-shared-actions #sharedRest,.touch-shared-actions #sharedDispense{background:#176d66}
+.height-keypad[hidden]{display:none}
+.height-keypad{position:fixed;inset:0;background:rgba(1,9,17,.91);z-index:9999;display:flex;align-items:center;justify-content:center;padding:6px}
+.keypad-panel{width:min(390px,96vw);max-height:98vh;overflow-y:auto;padding:12px;background:#122e45;border:2px solid #64c8f5;border-radius:13px;box-shadow:0 12px 40px #000}
+.keypad-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:17px;font-weight:700}
+.keypad-top button{min-width:52px;min-height:44px;font-size:22px}
+#heightKeypadDisplay{display:block;background:#081e30;border:1px solid #477c9c;border-radius:8px;padding:9px 12px;font-size:25px;font-weight:700;text-align:right;color:#fff;margin:7px 0}
+.keypad-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.keypad-grid button{min-height:49px;font-size:19px;background:#28536f;touch-action:manipulation}
+.keypad-grid button[data-key="back"]{background:#63465b}
+.keypad-grid button[data-key="clear"]{background:#63465b}
+.keypad-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.keypad-actions button{min-height:47px;font-size:15px}
+#keypadApply{background:#167f68}
+#heightKeypadError{min-height:15px;color:#ffcbac;font-size:11px;margin-top:6px}
+body.keypad-open{overflow:hidden}
+@media(max-width:750px){.height-row{grid-template-columns:24px 1fr 1fr 42px}.height-row #z1DispenseValue,.height-row #z2DispenseValue{grid-column:auto}}
+.simple-settings{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0;font-size:11px}
+.simple-settings label{font-size:11px}.simple-settings input[type=number]{width:115px}
+.motor-panel #motorStop{font-size:13px;padding:12px 20px;background:#922b46}
+.motor-panel #motorTestState{font-size:11px;flex:1}
+.motor-panel .simple-foot{font-size:10px;opacity:.8;margin:10px 0 0}
+.diag-fold{margin-top:12px}.diag-fold summary{padding:12px;background:#203a50;cursor:pointer;border-radius:8px;color:#a6cde1}
+.diag-fold .cold-panel{margin-top:8px}
+@media(max-width:650px){.simple-axes{grid-template-columns:1fr}}
+body.cold-ui nav button.nav,body.cold-ui .channels,body.cold-ui .speed-control,body.cold-ui .load-monitor,body.cold-ui .stall-control,body.cold-ui .actions,body.cold-ui .toolbar{display:none!important}
+body.cold-ui #jogHint{display:none!important}
+.motor-panel{background:#132d41;border:1px solid #4e9baf;border-radius:10px;padding:12px;margin-top:10px}
+.motor-panel h3{font-size:15px;color:#b9eaf4;margin:0 0 7px}
+.motor-panel p{font-size:11px;line-height:1.5;color:#c2d5e2}
+.motor-panel label{font-size:11px;color:#e4f2fc}
+.motor-panel input[type=number],.motor-panel select{background:#091c31;border:1px solid #698fa8;color:white;border-radius:5px;padding:8px;width:120px;max-width:100%}
+.motor-panel input[type=checkbox]{accent-color:#63cca5}
+.motor-panel .motor-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:9px 0}
+.motor-panel button{padding:10px 12px}
+.motor-panel button:disabled{opacity:.32}
+#motorTestState{display:block;color:#ffd48d;line-height:1.5;font-size:11px;margin:8px 0}
+#last{font-size:10px;color:#acd6e7} .details{display:none;padding:20px;background:#1b3047;border-radius:10px;min-height:298px}
+.details h2{font-size:20px}.details p{line-height:1.6;color:#adc5d9}
+@media(max-width:650px){main{width:800px;min-width:650px}body{overflow-x:auto}}
+
+/* 7-inch 800x480 touchscreen layout */
+main{width:800px;height:480px;min-height:480px;max-width:100%;margin:0 auto}
+.layout{grid-template-columns:125px minmax(0,1fr);gap:7px;padding:6px}
+nav{min-height:410px}
+nav button.nav{display:block!important;min-height:52px;height:auto;padding:8px 5px;font-size:11px;line-height:1.3;touch-action:manipulation}
+.workspace{height:415px;overflow-y:auto;overscroll-behavior:contain}
+.topline{position:sticky;top:0;z-index:10;background:#112033;padding:3px 0 7px;margin-bottom:4px}
+.topline button{min-height:41px;padding:7px 10px}
+.topline #motorStop{margin-left:auto;background:#9b2c48;font-size:12px;min-width:100px}
+.internal-controls[hidden], .screen-page[hidden]{display:none!important}
+.screen-page{padding-bottom:12px}
+.calibration-view{margin:6px 0 0!important;border-radius:10px;padding:8px!important}
+.calibration-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 9px;padding:5px 3px;border-bottom:1px solid #395d77}
+.calibration-header strong{font-size:14px;color:#c5eafc}
+.calibration-header small{font-size:10px;color:#a5c7d6}
+.height-cal-body{padding:3px!important}
+.calibration-view .height-row{grid-template-columns:21px 70px minmax(100px,1fr) 48px minmax(115px,1fr) 48px 26px;gap:4px}
+.calibration-view .height-row button{min-height:37px;font-size:10px;padding:5px 3px}
+.calibration-view .height-reference button{min-height:42px}
+.calibration-view .height-cal-body>small{font-size:10px;color:#a9c4d4;line-height:1.5;display:block;margin-top:8px}
+.diagnostic-view .cold-panel{margin-top:7px}
+body.cold-ui nav button.nav{display:block!important}
+body.cold-ui .toolbar,body.cold-ui .actions{display:none!important}
+@media(max-width:800px){main{margin:0} .layout{grid-template-columns:125px minmax(0,1fr)}}
+
+.cal-jog-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.cal-jog-grid>div{display:grid;grid-template-columns:auto 1fr 1fr;align-items:center;gap:5px;background:#122b40;border-radius:7px;padding:7px}
+.cal-jog-grid strong{font-size:10px;white-space:nowrap}
+.cal-jog-grid button{min-height:45px;font-size:11px;padding:5px 2px;touch-action:manipulation}
+
+/* Guided touchscreen calibration: simple sequence for 800x480 */
+#wizardLegacy[hidden], #wizardPick[hidden], #wizardWork[hidden], #wizardComplete[hidden]{display:none!important}
+.setup-wizard{background:#10293c;border:1px solid #3e758f;border-radius:9px;padding:14px;min-height:275px}
+.wizard-head{display:flex;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid #426984;padding-bottom:10px;margin-bottom:12px}
+.wizard-head strong{font-size:18px;color:#c3e8f9}
+.wizard-head small{font-size:11px;color:#a7c3d5}
+.wizard-pick>span{display:block;font-size:13px;margin-bottom:12px;color:#bfddec}
+.wizard-choice{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 17px}
+.wizard-choice button{min-height:62px;padding:7px 4px;white-space:normal;touch-action:manipulation;font-size:12px}
+.wizard-choice button.chosen{background:#146b85;border:2px solid #81d7f7;color:white}
+.wizard-primary{background:#197965!important;border-color:#49b99c!important;min-height:53px;font-size:14px;padding:12px;touch-action:manipulation}
+#wizardBegin,#wizardRestart{width:100%}
+.wizard-step{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:14px 0 10px}
+.wizard-step strong{font-size:20px;color:#bef2fb}
+.wizard-step span{color:#acd1e2;font-size:12px}
+#wizardInstruction{font-size:14px;color:#e0f2fb;line-height:1.5;margin:8px 0 15px}
+.wizard-move{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 13px}
+.wizard-move button{min-height:64px;font-size:16px;background:#225c7b;touch-action:manipulation}
+.wizard-actions{display:grid;grid-template-columns:110px 1fr;gap:9px}
+.wizard-actions button{min-height:51px}
+#wizardComplete strong{font-size:20px;color:#83e2b4}
+#wizardComplete p{font-size:14px;line-height:1.5}
+.wizard-note{color:#9fc1d4;font-size:11px;line-height:1.45;margin:12px 3px 1px}
+.wizard-finish{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.wizard-finish button{min-height:51px;padding:7px;font-size:12px}.wizard-move button:disabled{opacity:.3}
+
+/* HARD 800x480 single-screen fit, without any page scroll bars */
+html,body{width:100%;height:100%;margin:0;overflow:hidden!important;overscroll-behavior:none}
+body{display:flex;justify-content:center;align-items:flex-start}
+main{width:800px!important;max-width:100%!important;height:480px!important;min-height:0!important;margin:0!important;border-radius:0!important;overflow:hidden!important}
+header{height:49px!important;min-height:49px;padding:5px 12px}
+header h1{font-size:24px}
+.layout{height:430px!important;min-height:0;padding:4px 6px;grid-template-columns:124px minmax(0,1fr);gap:6px}
+nav{height:422px!important;min-height:0!important;overflow:hidden;padding:5px}
+nav button.nav{min-height:45px;height:auto;margin-bottom:2px;font-size:10px}
+nav .safe{padding:6px 2px;font-size:9px}
+.workspace{height:422px!important;min-height:0;overflow:hidden!important}
+.topline{height:44px;min-height:44px;margin:0 0 3px!important;padding:0 1px 4px;flex-wrap:nowrap}
+.topline button{min-height:37px!important;padding:4px 10px!important;font-size:10px}
+#homePage{height:370px;overflow:hidden!important}
+#motorPanel{margin:0!important;padding:6px 8px!important;overflow:hidden}
+#motorPanel h3{font-size:13px;margin:0 0 5px}
+#homePage .simple-axes{gap:7px;margin:4px 0 5px}
+#homePage .axis-simple{padding:6px;gap:3px}
+#homePage .axis-simple strong{font-size:11px}
+#homePage .axis-status{font-size:9px;min-height:10px}
+#homePage .axis-buttons,#homePage .axis-goto{gap:4px}
+#homePage .axis-buttons button,#homePage .axis-goto button{min-height:37px!important;padding:5px 2px!important;font-size:10px}
+#homePage .axis-ref{font-size:9px;line-height:1.1}
+#homePage .axis-restore{font-size:9px!important;padding:4px!important;min-height:25px;background:#2e6052}
+#homePage .axis-restore[hidden]{display:none!important}
+#homePage .speed-box{padding:5px 8px!important;margin:5px 0 3px!important}
+#homePage .speed-caption{font-size:11px}
+#homePage #holdSpeed{height:17px;margin:2px 0}
+#homePage .speed-ends{font-size:9px}
+#homePage #holdSpeedInfo{display:none!important}
+#homePage .rgb-pin-row,#homePage .simple-foot{display:none!important}
+#homePage .simple-settings{margin:3px 0;font-size:10px;gap:3px}
+#homePage .simple-settings label{font-size:10px}
+#homePage .motor-row{margin:2px 0!important}
+#homePage #motorTestState{font-size:10px;margin:2px 0;line-height:1.15}
+#homePage .channels,#homePage .speed-control,#homePage .load-monitor,#homePage .stall-control,
+#homePage .actions,#homePage .toolbar,#homePage #log{display:none!important}
+#detailPage,.workspace>.toolbar,.workspace>#log,.workspace>#jogHint,.workspace>.muted{display:none!important}
+.screen-page{height:370px!important;min-height:0;overflow:hidden!important;padding:0!important}
+.setup-wizard{padding:8px 12px!important;min-height:0!important;height:367px!important;overflow:hidden!important}
+.wizard-head{margin-bottom:8px;padding-bottom:6px}
+.wizard-head strong{font-size:16px}
+.wizard-head small{font-size:10px}
+.wizard-pick>span{font-size:12px;margin-bottom:7px}
+.wizard-choice{gap:7px;margin:7px 0 11px}
+.wizard-choice button{min-height:57px;font-size:11px}
+#wizardBegin{min-height:48px}
+.wizard-step{margin:8px 0}
+.wizard-step strong{font-size:16px}
+#wizardInstruction{font-size:12px;line-height:1.3;margin:5px 0 8px}
+.wizard-move{margin:8px 0;gap:8px}
+.wizard-move button{min-height:54px}
+.wizard-actions button{min-height:47px}
+.wizard-note{font-size:10px;line-height:1.3;margin:9px 2px 0}
+#wizardComplete strong{font-size:17px}
+#wizardComplete p{font-size:12px}
+.diagnostic-view{height:368px;overflow:hidden}
+.diagnostic-view .calibration-header{margin:2px 0 6px;padding:4px}
+.diagnostic-view .cold-panel{padding:7px;margin:0}
+.diagnostic-view .cold-panel>p:first-of-type,
+.diagnostic-view .cold-panel>p:last-of-type,
+.diagnostic-view #coldDetails,.diagnostic-view #coldLast{display:none!important}
+.diagnostic-view .cold-status-grid{gap:3px;margin:5px 0}
+.diagnostic-view .cold-status-grid>div{padding:5px;font-size:10px}
+@media(max-width:800px){body{display:block}main{width:800px!important;min-width:800px!important;transform-origin:top left}}
+
+.sidebar-checked{font-size:10px;display:flex;align-items:flex-start;gap:4px;color:#bdd8e7;padding:6px 3px;line-height:1.25;cursor:pointer}
+.sidebar-checked input{accent-color:#55c6a1;flex-shrink:0;margin:0}
+</style></head><body class="cold-ui"><div id="heightKeypad" class="height-keypad" role="dialog" aria-modal="true" aria-labelledby="heightKeypadTitle" hidden>
+<div class="keypad-panel">
+<div class="keypad-top"><span id="heightKeypadTitle">ALTURA COMÚN · MICROPASOS</span><button id="keypadClose" type="button" aria-label="Cerrar">×</button></div>
+<output id="heightKeypadDisplay">0</output>
+<div class="keypad-grid">
+<button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" data-key="back">⌫</button>
+<button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" data-key="clear">C</button>
+<button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" data-key="sign">±</button>
+<button type="button" data-key="0">0</button><button type="button" data-key="00">00</button><button type="button" data-key="stepdown">−100</button><button type="button" data-key="stepup">+100</button>
+</div>
+<div id="heightKeypadError" role="status"></div>
+<div class="keypad-actions"><button id="keypadCancel" type="button">Cancelar</button><button id="keypadApply" type="button">✓ Aplicar</button></div>
+</div></div><main>
+<header><h1>VALVER</h1><div class="divider"></div><small>SMART DISPENSER<br>DIAGNÓSTICO DE CONEXIONES · HMI PC</small><strong id="state">DESCONECTADO</strong></header>
+<div class="layout"><nav>
+<button class="nav active" data-page="home">CONTROL Z</button>
+<button class="nav" data-page="calibration">CALIBRAR ALTURAS</button>
+<button class="nav" data-page="diag">DIAGNÓSTICO</button>
+<label class="sidebar-checked"><input id="motorChecked" type="checkbox"> Conexiones de motores verificadas</label>
+<div class="safe" id="powerLabel">PRUEBA 12 V<br>PULSOS LIMITADOS</div>
+</nav><div class="workspace">
+<div class="topline"><button id="connect">CONECTAR COM</button><button id="disconnect" disabled>DESCONECTAR</button><button id="motorStop" class="stop" type="button">■ PARADA</button>
+<div class="internal-controls" hidden><button id="ping" disabled>PING</button><button id="info" disabled>INFO</button><button id="status" disabled>Estado</button><button id="sensors" disabled>Sensores</button><button id="readiness" disabled>Seguridad</button><span class="state-pill" id="channelState">NINGUNO</span></div></div>
+<div id="homePage">
+<section id="motorPanel" class="motor-panel" aria-label="Control de motores Z1 Z2">
+<h3>CONTROL DE MOTORES · 12 V</h3>
+<div class="simple-axes">
+<div class="axis-simple"><strong>Z1 · CONDUCTIVO</strong><span id="z1Comms" class="axis-status">UART pendiente</span><span id="z1HoldState" class="axis-status"></span>
+<div class="axis-buttons"><button id="motorZ1Up" disabled>▲ SUBIR</button><button id="motorZ1Down" disabled>▼ BAJAR</button></div>
+<div class="axis-goto"><button id="gotoZ1Rest" disabled>IR A REPOSO</button><button id="gotoZ1Dispense" disabled>IR A DISPENSACIÓN</button></div>
+<small id="z1RefState" class="axis-ref">Marca las alturas en CALIBRAR ALTURAS</small><button id="restoreZ1Rest" class="axis-restore" hidden disabled>✓ ESTOY EN REPOSO · Z1</button></div>
+<div class="axis-simple"><strong>Z2 · ESTRUCTURAL</strong><span id="z2Comms" class="axis-status">UART pendiente</span><span id="z2HoldState" class="axis-status"></span>
+<div class="axis-buttons"><button id="motorZ2Up" disabled>▲ SUBIR</button><button id="motorZ2Down" disabled>▼ BAJAR</button></div>
+<div class="axis-goto"><button id="gotoZ2Rest" disabled>IR A REPOSO</button><button id="gotoZ2Dispense" disabled>IR A DISPENSACIÓN</button></div>
+<small id="z2RefState" class="axis-ref">Marca las alturas en CALIBRAR ALTURAS</small><button id="restoreZ2Rest" class="axis-restore" hidden disabled>✓ ESTOY EN REPOSO · Z2</button></div>
+</div>
+<div class="speed-box"><div class="speed-caption"><label for="holdSpeed">VELOCIDAD Z1 Y Z2</label><strong><span id="holdSpeedValue">1600</span> micropasos/s</strong></div>
+<input id="holdSpeed" type="range" min="80" max="8000" step="20" value="1600" disabled>
+<div class="speed-ends"><span>80 · suave</span><span>8000 · rápido</span></div>
+<small id="holdSpeedInfo">Ajusta con los motores detenidos. Se guarda automáticamente en el ESP32 y se restaura al encender. Aceleración progresiva.</small></div>
+<div class="rgb-pin-row">
+ <span class="rgb-dot rgb-blue"></span> Z1: azules
+ <span class="rgb-dot rgb-red"></span> Z2: rojos
+ <small id="rgbPinNote">LED integrado automático · GPIO48/GPIO38 compatibles, sin cables ni selección</small>
+</div>
+
+
+<div class="motor-row"><span id="motorTestState">UART y corriente pendientes · motores bloqueados</span></div>
+<p class="simple-foot">Mantén pulsado para mover. Al soltar, el motor retiene su altura con corriente reducida mientras la HMI siga conectada. PARADA libera ambos motores; si se pierde la comunicación, los drivers se deshabilitan por seguridad. La corriente de marcha permanece regulada a 150 mA RMS.</p>
+</section>
+
+<div class="channels">
+<section id="card1" class="card locked"><h2>Z1 · Conductivo</h2><span class="muted">Aguja adhesivo conductivo</span><p class="muted">STEP GPIO4 · DIR GPIO5 · EN GPIO6</p><button id="choose1" class="choose" disabled>Seleccionar Z1</button><div class="row"><button class="test" data-cmd="JOG_MOTOR_START_Z1_UP" disabled>▲ Mantener subir</button><button class="test" data-cmd="JOG_MOTOR_START_Z1_DOWN" disabled>▼ Mantener bajar</button></div><p class="muted">Reposo: pendiente · Dispensación: pendiente</p><p class="muted">Punta / mesa: sin calibrar</p></section>
+<section id="card2" class="card locked"><h2>Z2 · Estructural</h2><span class="muted">Aguja adhesivo estructural</span><p class="muted">STEP GPIO7 · DIR GPIO15 · EN GPIO16</p><button id="choose2" class="choose" disabled>Seleccionar Z2</button><div class="row"><button class="test" data-cmd="JOG_MOTOR_START_Z2_UP" disabled>▲ Subir</button><button class="test" data-cmd="JOG_MOTOR_START_Z2_DOWN" disabled>▼ Bajar</button></div><p class="muted">Reposo: pendiente · Dispensación: pendiente</p><p class="muted">Punta / mesa: sin calibrar</p></section>
+</div><div class="speed-control"><label for="speed">Velocidad Z1/Z2: <b id="speedValue">160</b> pasos/s</label><div class="fine-row"><button type="button" id="speedMinus">−</button><input id="speed" type="range" min="20" max="1600" step="1" value="160"><button type="button" id="speedPlus">+</button><input id="speedNumber" aria-label="Velocidad exacta" type="number" min="20" max="1600" step="1" value="160"></div><div class="muted">20–1600 pasos/s · Generación STEP por hardware · Cambios de 1 paso/s con motor detenido</div></div><div class="load-monitor"><div class="load-head"><b>Esfuerzo del motor · En directo</b><span id="loadStatus" class="load-badge">Esperando giro</span></div><div class="load-row"><div class="metric"><small>SG_RESULT · Lectura del TMC2209</small><strong id="loadRaw">—</strong><small id="loadDirection">Z1 · Sin lectura</small></div><div class="metric"><small>Incremento relativo de carga</small><strong id="loadPercent">—</strong><small id="loadBaseline">Calibrando referencia</small><small id="loadDelta" style="display:block;margin-top:5px;font-size:12px;color:#e2bc76">Variación SG: —</small><small id="loadTstep" style="display:block;margin-top:4px">TSTEP Z1: pendiente</small></div></div><div class="load-suggestion"><label for="loadGain">Amplificación visual Z seleccionada (solo HMI)</label><div class="fine-row"><input id="loadGain" type="range" min="1" max="20" step="1" value="8"><strong id="loadGainValue">8×</strong></div></div><div class="track"><div id="loadFill" class="fill"></div></div><canvas id="loadChart" width="600" height="104" aria-label="Historial reciente del esfuerzo relativo del motor"></canvas><div class="load-suggestion"><button type="button" id="diagCompare" disabled>Analizar drivers Z1 / Z2</button><span id="diagCompareResult" style="flex:1">Pulsa analizar (motores detenidos)</span></div><div class="load-check"><strong>Prueba comparativa de carga · Sin movimientos automáticos</strong><p id="diagGuide">1. Analiza los drivers. 2. Ajusta 800 pasos/s. 3. Mantén SUBIR con Z1 en vacío durante 5 s; repite con Z2.</p><div class="load-check-grid"><div id="diagZ1">Z1: sin muestras</div><div id="diagZ2">Z2: sin muestras</div></div><div id="diagVerdict">Resultado: esperando pruebas</div><button type="button" id="diagReset">Reiniciar mediciones</button></div><div class="load-suggestion"><span id="loadSuggested">Umbral: esperando referencia en vacío</span><button id="stallSuggest" type="button" disabled>Usar sensibilidad sugerida</button></div><p class="caption" id="loadCaption">El TMC2209 solo proporciona una estimación de carga durante el giro. No mide fuerza ni presión en N o bar. La referencia se toma al arrancar en vacío.</p></div><div class="stall-control"><div class="stall-top"><b>Detección de resistencia · StallGuard4</b><span id="stallState">UART no comprobado</span></div><label for="stallSensitivity">Sensibilidad Z seleccionada: <b id="stallValue">40</b> / 255</label><div class="fine-row"><button type="button" id="stallMinus">−</button><input id="stallSensitivity" type="range" min="0" max="255" step="1" value="40"><button type="button" id="stallPlus">+</button><input id="stallNumber" aria-label="Sensibilidad exacta" type="number" min="0" max="255" step="1" value="40"></div><div class="muted" id="stallResult">SG_RESULT: sin lectura (activar detección y mover a velocidad adecuada)</div><div class="row"><button id="stallApply" disabled>Aplicar sensibilidad</button><button id="stallEnable" disabled>Activar parada por carga</button><button id="stallDisable" disabled>Desactivar</button></div><p class="muted">Necesita PDN_UART conectado y probado. Solo fiable tras calibración a velocidad adecuada; no sustituye el final de carrera.</p></div><div class="actions"><div class="panel"><h3>CALIBRACIÓN DE PUNTA</h3><p>Referencia individual del sensor óptico</p><button data-page="tip">Ver calibración</button></div><div class="panel"><h3>ALTURA DE MESA</h3><p>Detección física pendiente de validar</p><button data-page="table">Ver calibración</button></div></div>
+</div>
+<div id="calibrationPage" class="screen-page" hidden>
+<section class="setup-wizard" aria-label="Configurar posiciones de agujas">
+ <div class="wizard-head"><strong>INICIO DEL SISTEMA</strong><small>Configura la dispensación y el reposo en 2 pasos</small></div>
+ <div class="wizard-pick" id="wizardPick">
+  <span>¿Qué motor quieres configurar?</span>
+  <div class="wizard-choice">
+   <button id="wizardSelectZ1" class="chosen" type="button">Z1 · CONDUCTIVO</button>
+   <button id="wizardSelectZ2" type="button">Z2 · ESTRUCTURAL</button>
+   <button id="wizardSelectBoth" type="button">AMBOS</button>
+  </div>
+  <button id="wizardBegin" class="wizard-primary" type="button">INICIAR SISTEMA</button>
+ </div>
+ <div id="wizardWork" hidden>
+  <div class="wizard-step"><strong id="wizardTitle">Z1 · DISPENSACIÓN</strong><span id="wizardCount">Paso 1 de 2</span></div>
+  <p id="wizardInstruction">Mantén SUBIR o BAJAR hasta colocar la aguja en DISPENSACIÓN.</p>
+  <div class="wizard-move"><button id="wizardUp" type="button" disabled>▲ SUBIR</button><button id="wizardDown" type="button" disabled>▼ BAJAR</button></div>
+  <div class="wizard-actions"><button id="wizardCancel" type="button">CANCELAR</button><button id="wizardConfirm" class="wizard-primary" type="button" disabled>OK · GUARDAR ESTA POSICIÓN</button></div>
+ </div>
+ <div id="wizardComplete" hidden>
+  <strong>✓ ALTURAS GUARDADAS</strong>
+  <p id="wizardDoneText">Los botones IR A REPOSO e IR A DISPENSACIÓN ya usan estas posiciones.</p>
+  <div class="wizard-finish"><button id="wizardRestart" type="button">CONFIGURAR OTRA VEZ</button><button id="wizardGoControl" class="wizard-primary" type="button">IR A CONTROL Z</button></div>
+ </div>
+ <p class="wizard-note" id="wizardNote">Se guardan en la memoria del ESP32. Supervisa siempre los movimientos; sin sensor de origen, después de apagar debes confirmar la posición física antes de usar IR A.</p>
+</section>
+<div id="wizardLegacy" hidden><section class="height-cal calibration-view" id="heightCalDetails" aria-label="Calibración de alturas Z">
+ <div class="calibration-header"><strong>CALIBRAR ALTURAS</strong><small>Marcar alturas individuales o comunes</small></div>
+<div class="cal-jog-grid">
+ <div><strong>Z1 · CONDUCTIVO</strong><button id="calZ1Up" type="button" disabled>▲ SUBIR</button><button id="calZ1Down" type="button" disabled>▼ BAJAR</button></div>
+ <div><strong>Z2 · ESTRUCTURAL</strong><button id="calZ2Up" type="button" disabled>▲ SUBIR</button><button id="calZ2Down" type="button" disabled>▼ BAJAR</button></div>
+</div>
+ <div class="height-cal-body">
+ <div class="height-row">
+   <strong>Z1</strong><span id="z1Position">Pos. 0</span>
+   <button id="saveZ1Rest" disabled>MARCAR REPOSO</button><span id="z1RestValue">—</span>
+   <button id="saveZ1Dispense" disabled>MARCAR DISPENSACIÓN</button><span id="z1DispenseValue">—</span>
+   <button id="clearZ1Heights" class="height-clear" disabled title="Borrar alturas Z1">×</button>
+ </div>
+ <div class="height-row">
+   <strong>Z2</strong><span id="z2Position">Pos. 0</span>
+   <button id="saveZ2Rest" disabled>MARCAR REPOSO</button><span id="z2RestValue">—</span>
+   <button id="saveZ2Dispense" disabled>MARCAR DISPENSACIÓN</button><span id="z2DispenseValue">—</span>
+   <button id="clearZ2Heights" class="height-clear" disabled title="Borrar alturas Z2">×</button>
+ </div>
+ <div class="height-reference">
+  <button id="referenceZ1Rest" type="button" disabled>ESTOY EN REPOSO · Z1</button>
+  <button id="referenceZ2Rest" type="button" disabled>ESTOY EN REPOSO · Z2</button>
+ </div>
+ <div class="height-shared">
+  <span class="touch-label">ALTURA COMÚN</span>
+  <input id="sharedHeightValue" class="touch-value" type="text" inputmode="none" readonly value="0" aria-label="Altura común; tocar para abrir teclado numérico">
+  <div class="touch-steps">
+   <button id="heightMinus100" type="button">−100</button><button id="heightMinus10" type="button">−10</button>
+   <button id="heightPlus10" type="button">+10</button><button id="heightPlus100" type="button">+100</button>
+  </div>
+  <div class="touch-shared-actions">
+   <button id="copyZ1Height" type="button" disabled>Usar altura Z1</button><button id="copyZ2Height" type="button" disabled>Usar altura Z2</button>
+   <button id="sharedRest" type="button" disabled>MARCAR REPOSO Z1+Z2</button>
+   <button id="sharedDispense" type="button" disabled>MARCAR DISPENSACIÓN Z1+Z2</button>
+  </div>
+ </div>
+ <small id="heightCalNotice">Marca REPOSO y DISPENSACIÓN de cada aguja. Ya podrás ir entre ambas alturas. Después de apagar y encender, sitúa la aguja en reposo y pulsa ESTOY EN REPOSO una sola vez. Sin finales de carrera: supervisa la máquina.</small>
+ </div>
+</section></div>
+</div>
+<div id="diagnosticPage" class="screen-page" hidden>
+<section class="diagnostic-view"><div class="calibration-header"><strong>DIAGNÓSTICO</strong><small>Comprobación automática USB, GPIO y UART</small></div>
+<section class="cold-panel" id="coldPanel" aria-label="Autodiagnóstico USB seguro">
+<h3>AUTODIAGNÓSTICO · PRUEBA CONTROLADA A 12 V</h3>
+<p>Al conectar el ESP32-S3 se comprueban automáticamente USB, GPIO y respuesta UART de los TMC2209. El diagnóstico no mueve motores. Solo una orden explícita de prueba puede generar pulsos STEP.</p>
+<div class="cold-status-grid">
+ <div><span>USB / respuesta PONG</span><strong id="coldUsb">PENDIENTE</strong></div>
+ <div><span>Firmware con bloqueo</span><strong id="coldFirmware">PENDIENTE</strong></div>
+ <div><span>GPIO EN / STEP / DIR (lectura local)</span><strong id="coldGpio">PENDIENTE</strong></div>
+ <div><span>UART con los TMC2209 (a 12 V)</span><strong id="coldUart">PENDIENTE</strong></div>
+ <div><span>Polaridad +24 V, VIO, masas y bobinas</span><strong id="coldWiring">NO COMPROBABLE POR SOFTWARE</strong></div>
+</div>
+<p id="coldResult" style="font-size:12px;font-weight:bold;color:#e9bf82">Conecta el ESP32-S3 por USB; diagnóstico automático pendiente.</p>
+<p id="coldDetails" style="font-family:Consolas,monospace;color:#b7e7ed;white-space:pre-wrap">—</p>
+<p class="muted" id="coldLast">Sin lecturas aún.</p>
+<p style="color:#ffc7a7"><b>Solo 12 V durante esta prueba.</b> Un UART correcto no certifica la polaridad, las bobinas, el ajuste físico de corriente ni la ausencia de cortocircuitos. Si aparece CC, temperatura o ruido anormal, corta inmediatamente la fuente.</p>
+</section>
+</section>
+</div>
+<div id="detailPage" class="details"><h2 id="detailTitle">Calibración</h2><p id="detailText">Funciones físicas pendientes.</p><p>Canal: <b id="detailChannel">Ninguno</b></p><p id="sensorReadout">Sensor óptico: sin validar · StallGuard4: sin validar</p><p><strong>Calibración física bloqueada.</strong> Faltan: corriente nominal, UART, finales de carrera, sensor óptico y calibración StallGuard4.</p><p id="readinessLabel">Motores: NO AUTORIZADOS · Diagnóstico disponible en botón Seguridad.</p><button data-page="home">Volver a control Z</button></div>
+
+<div class="toolbar"><button id="disable" disabled>Bloquear ambos</button><button id="stop" class="stop" disabled>STOP</button></div>
+<div class="muted">Estado: <span id="armState">MOTORES DETENIDOS</span> · <span id="last">Sin respuesta del controlador</span></div>
+<div class="muted" id="jogHint">MODO EN FRÍO: no es posible mover los motores ni configurar StallGuard4. No conectar 24 V hasta completar las medidas físicas.</div><pre id="log" aria-live="polite">Inspección automática: conectar ESP32 por USB; si el puerto COM ya tiene permiso, se abrirá automáticamente. No conectar VM ni bobinas.</pre>
+</div></div></main><script src="serial.js?v=20261105-interlock-ready-18"></script></body></html>
