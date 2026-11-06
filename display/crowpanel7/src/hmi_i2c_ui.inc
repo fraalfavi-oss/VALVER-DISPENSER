@@ -4,6 +4,8 @@ static bool motorOnline=false,held=false,moving=false,autoRunning=false,holdOwne
 static uint8_t txSeq=0,waitingSeq=0,waitingOp=0,heldAxis=0,heldUp=0;
 static uint8_t motorFlags=0;
 static uint32_t lastLink=0,lastPoll=0,lastBeat=0,waitingSince=0,lastStatusDraw=0;
+static uint8_t lastRemoteAck=0,lastRemoteStatus=0;
+static uint32_t badReadCount=0;
 static lv_obj_t *connectionText=nullptr,*driverText=nullptr;
 static lv_obj_t *axisText[2]={nullptr,nullptr},*positionText[2]={nullptr,nullptr};
 static int32_t readInt32(const uint8_t* p){
@@ -71,7 +73,13 @@ void on_action(lv_event_t* e){
  taps++;if(counterLabel)lv_label_set_text_fmt(counterLabel,"TOQUES DETECTADOS: %lu",(unsigned long)taps);
  if(a>=NAV0&&a<=NAV3){show_page((uint8_t)(a-NAV0));return;}
  if(a==STOP){motorStop();return;}
- if(a==CONNECT){sendMotor(1);return;}
+ if(a==CONNECT){
+  if(waitingOp){show_notice("Prueba I2C pendiente: no enviar otra orden");return;}
+  if(sendMotor(1,0,0,0,true))
+    show_notice("Verificando confirmacion PING/PONG por cable...");
+  else show_notice("PING: escritura I2C fallida");
+  return;
+ }
  if(a==Z1_UP||a==Z1_DOWN||a==Z2_UP||a==Z2_DOWN||a==WIZ_UP||a==WIZ_DOWN)return;
  if(a==Z1_REST||a==Z1_DISP||a==Z2_REST||a==Z2_DISP){
   uint8_t ax=(a==Z1_REST||a==Z1_DISP)?1:2;
@@ -104,6 +112,7 @@ static void pollMotors(){
  if(count==32){for(int i=0;i<32;i++)rx[i]=Wire1.read();}
  else while(Wire1.available())Wire1.read();
  if(count!=32||rx[0]!=0x56||rx[1]!=1){
+  badReadCount++;
   if(now-lastLink>500&&motorOnline){
    motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;waitingOp=0;
    if(connectionText)lv_label_set_text(connectionText,"I2C: SIN ENLACE");
@@ -114,9 +123,14 @@ static void pollMotors(){
  }
  const bool wasOnline=motorOnline;
  motorOnline=true;lastLink=now;motorFlags=rx[5];
+ lastRemoteAck=rx[2];lastRemoteStatus=rx[3];
  if(waitingOp&&rx[2]==waitingSeq){
   const uint8_t op=waitingOp;waitingOp=0;
-  if(rx[3]==2){
+  if(op==1){
+     if(rx[3]==1)show_notice("PING/PONG I2C: confirmacion recibida");
+     else show_notice("PING I2C: respuesta rechazada");
+   }
+   if(rx[3]==2){
    char msg[70];snprintf(msg,sizeof(msg),"ORDEN RECHAZADA: %.15s",(char*)(rx+16));
    held=false;moving=false;show_notice(msg);
   }else if(rx[3]==1){
@@ -143,9 +157,16 @@ static void pollMotors(){
  if(!wasOnline)show_notice("Controlador conectado por cable I2C");
  // A missing ACK must never lock the touch interface indefinitely.
  if(waitingOp && (uint32_t)(now-waitingSince)>850){
+  const uint8_t timedOutOp=waitingOp,timedOutSeq=waitingSeq;
   waitingOp=0;held=false;moving=false;autoRunning=false;holdOwned=false;
   sendMotor(2);
-  show_notice("Confirmacion agotada: PARADA automatica, verifica controlador");
+  char details[140];
+  snprintf(details,sizeof(details),
+   "ACK agotado op=%u seq=%u recibido=%u estado=%u lecturas_fail=%lu",
+   (unsigned)timedOutOp,(unsigned)timedOutSeq,
+   (unsigned)lastRemoteAck,(unsigned)lastRemoteStatus,
+   (unsigned long)badReadCount);
+  show_notice(details);
  }
  if((motorFlags&1)&&((held&&moving)||autoRunning)&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
  else if(holdOwned&&(motorFlags&12)&&now-lastBeat>=150){sendMotor(7);lastBeat=now;}
