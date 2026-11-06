@@ -3,6 +3,7 @@ static constexpr uint8_t MOTOR_I2C=0x32;
 static bool motorOnline=false,held=false,moving=false,autoRunning=false,holdOwned=false;
 static uint8_t txSeq=0,waitingSeq=0,waitingOp=0,heldAxis=0,heldUp=0;
 static uint8_t motorFlags=0;
+static uint8_t previousTmcReady=0;
 static uint32_t lastLink=0,lastPoll=0,lastBeat=0,waitingSince=0,lastStatusDraw=0;
 static uint8_t lastRemoteAck=0,lastRemoteStatus=0;
 static uint32_t badReadCount=0;
@@ -138,6 +139,14 @@ static void pollMotors(){
  }
  const bool wasOnline=motorOnline;
  motorOnline=true;lastLink=now;motorFlags=rx[5];
+ const uint8_t currentTmcReady=(uint8_t)(motorFlags&0xC0);
+ if(currentTmcReady!=previousTmcReady){
+   previousTmcReady=currentTmcReady;
+   if(currentTmcReady==0xC0)
+     show_notice("TMC2209 Z1/Z2: UART enlazada, listo para verificar");
+   else
+     show_notice("Esperando alimentacion y UART de los TMC2209");
+ }
  lastRemoteAck=rx[2];lastRemoteStatus=rx[3];
  // Confirm the axis is actually running via the motor-controller state,
  // never by accepting an unverified write as proof of movement.
@@ -187,12 +196,14 @@ static void pollMotors(){
   if(connectionText)lv_label_set_text(connectionText,"I2C: CONECTADO 0x32");
   if(driverText)lv_label_set_text(driverText,"CONECTADO");
   for(int i=0;i<2;i++){
-   if(axisText[i])lv_label_set_text(axisText[i],(motorFlags&(i?128:64))?"TMC2209: UART OK":"TMC2209: SIN RESPUESTA");
+   if(axisText[i])lv_label_set_text(axisText[i],
+      (motorFlags&(i?128:64))?"TMC2209: UART OK":"TMC2209: ESPERANDO VM/UART");
    if(positionText[i])lv_label_set_text_fmt(positionText[i],"Z%d: %ld | %s",i+1,
       (long)readInt32(rx+8+4*i),(motorFlags&(i?32:16))?"REFERENCIADO":"SIN ORIGEN");
   }
  }
- if(!wasOnline)show_notice("Controlador conectado por cable I2C");
+ if(!wasOnline && (motorFlags&0xC0)!=0xC0)
+   show_notice("I2C conectada. Esperando que arranquen los drivers.");
  // Manual movement is held only by continuous touch and watchdog beats.
  // This is independent of the lagging reply sequence on HOLD_START.
  if(held && (startPending||moving) && (uint32_t)(now-lastBeat)>=90){
