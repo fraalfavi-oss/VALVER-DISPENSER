@@ -1,7 +1,7 @@
 #ifndef VALVER_CROWPANEL_GT911_H
 #define VALVER_CROWPANEL_GT911_H
 
-// Elecrow CrowPanel 7-inch V3.0 GT911, official PCA9557 reset sequence.
+// Elecrow CrowPanel V3.0 GT911, passive power-on startup and PCA9557 read-only diagnostics.
 // All I2C devices use Wire1 on GPIO19(SDA), GPIO20(SCL).
 // No motor GPIO, UART or movement commands in this driver.
 #include <Arduino.h>
@@ -25,13 +25,6 @@ static bool touch_i2c_ack(uint8_t address){
  return Wire1.endTransmission()==0;
 }
 
-static bool touch_pca_write(uint8_t reg,uint8_t value){
- Wire1.beginTransmission(PCA9557_ADDRESS);
- Wire1.write(reg);
- Wire1.write(value);
- return Wire1.endTransmission()==0;
-}
-
 static bool touch_pca_read(uint8_t reg,uint8_t &value){
  Wire1.beginTransmission(PCA9557_ADDRESS);
  Wire1.write(reg);
@@ -39,19 +32,6 @@ static bool touch_pca_read(uint8_t reg,uint8_t &value){
  if(Wire1.requestFrom(PCA9557_ADDRESS,(uint8_t)1)!=1)return false;
  value=(uint8_t)Wire1.read();
  return true;
-}
-
-static bool touch_pca_mode(uint8_t pin,bool input){
- uint8_t v=0;
- if(!touch_pca_read(PCA9557_CONFIG,v))return false;
- v=input?(uint8_t)(v|(1U<<pin)):(uint8_t)(v&~(1U<<pin));
- return touch_pca_write(PCA9557_CONFIG,v);
-}
-static bool touch_pca_state(uint8_t pin,bool high){
- uint8_t v=0;
- if(!touch_pca_read(PCA9557_OUTPUT,v))return false;
- v=high?(uint8_t)(v|(1U<<pin)):(uint8_t)(v&~(1U<<pin));
- return touch_pca_write(PCA9557_OUTPUT,v);
 }
 
 static bool touch_gt911_read(uint8_t address,uint16_t reg,uint8_t *data,size_t count){
@@ -80,22 +60,26 @@ bool touch_init(){
  Serial.printf("[I2C] PCA9557 0x18: %s\n",pca?"OK":"SIN RESPUESTA");
 
  if(pca){
-  // This is the reset sequence in Elecrow's official V3.0 example.
-  // PCA9557 IO0 drives GT911 RESET and IO1 selects its I2C address.
-  bool success=touch_pca_write(PCA9557_CONFIG,0xFF);
-  success=touch_pca_mode(0,false)&&success;
-  success=touch_pca_mode(1,false)&&success;
-  success=touch_pca_state(0,false)&&success;
-  success=touch_pca_state(1,false)&&success;
-  delay(20);
-  success=touch_pca_state(0,true)&&success;
-  delay(100);
-  success=touch_pca_mode(1,true)&&success;
-  Serial.printf("[TOUCH] PCA9557 GT911 reset: %s\n",success?"OK":"FALLO");
- }else{
-  // Some board revisions wire GT911 directly. No expander to toggle.
-  delay(150);
+  // Read-only diagnosis. Some V3.0 units fail to boot GT911 after PCA9557
+  // RST/INT outputs are toggled; do NOT write config/output in this driver.
+  uint8_t config=0,input=0,outputs=0;
+  const bool cfg_ok=touch_pca_read(PCA9557_CONFIG,config);
+  const bool in_ok=touch_pca_read(0x00,input);
+  const bool out_ok=touch_pca_read(PCA9557_OUTPUT,outputs);
+  if(cfg_ok&&in_ok&&out_ok){
+   Serial.printf("[I2C] PCA9557 lectura: CFG=0x%02X ENTRADAS=0x%02X SALIDAS=0x%02X\\n",
+      config,input,outputs);
+   Serial.printf("[TOUCH] PCA IO0 RST: %s; IO1 INT: %s\\n",
+      (config&1)?"ENTRADA (liberado)":"SALIDA (atencion)",
+      (config&2)?"ENTRADA (liberado)":"SALIDA (atencion)");
+  }else{
+   Serial.println("[I2C] PCA9557 responde pero no se pueden leer registros.");
+  }
  }
+ // Leave hardware at power-on default: GT911 can boot on its own from pullups.
+ // IMPORTANT: after flashing this code, unplug all CrowPanel power for 10 s;
+ // pressing RESET only restarts ESP32, not necessarily PCA9557/GT911.
+ delay(250);
 
  const uint8_t candidates[2]={GT911_ADDRESS_A,GT911_ADDRESS_B};
  for(const uint8_t address:candidates){
