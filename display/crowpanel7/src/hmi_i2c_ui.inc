@@ -9,6 +9,7 @@ static uint32_t badReadCount=0;
 static uint8_t lastCriticalPacket[9]={0};
 static uint8_t startRetryCount=0;
 static uint32_t startRetryAt=0;
+static int32_t startPosition=0;
 static lv_obj_t *connectionText=nullptr,*driverText=nullptr;
 static lv_obj_t *axisText[2]={nullptr,nullptr},*positionText[2]={nullptr,nullptr};
 static int32_t readInt32(const uint8_t* p){
@@ -133,6 +134,18 @@ static void pollMotors(){
  const bool wasOnline=motorOnline;
  motorOnline=true;lastLink=now;motorFlags=rx[5];
  lastRemoteAck=rx[2];lastRemoteStatus=rx[3];
+ // The command response can lag one transaction under load. Independently
+ // verify manual start through the reported active axis and step progression.
+ // This requires: original touch still pressed, a pending HOLD_START, same
+ // axis, non-automatic motion and a changed relative motor step counter.
+ if(waitingOp==4 && held && (motorFlags&1) && !(motorFlags&2) &&
+    rx[7]==heldAxis && rx[2]!=waitingSeq &&
+    readInt32(rx+8+4*(heldAxis-1))!=startPosition){
+    Serial.printf("[I2C] HOLD_START state-confirmed axis=%u seq=%u remote_ack=%u\n",
+       (unsigned)heldAxis,(unsigned)waitingSeq,(unsigned)rx[2]);
+    waitingOp=0;moving=true;holdOwned=true;
+    show_notice("Motor en marcha: estado verificado por controlador");
+ }
  if(waitingOp&&rx[2]==waitingSeq){
   const uint8_t op=waitingOp;waitingOp=0;
   if(op==1){
@@ -143,7 +156,13 @@ static void pollMotors(){
    char msg[70];snprintf(msg,sizeof(msg),"ORDEN RECHAZADA: %.15s",(char*)(rx+16));
    held=false;moving=false;show_notice(msg);
   }else if(rx[3]==1){
-   if(op==3&&held){if(!sendMotor(4,heldAxis,heldUp,0,true))held=false;}
+   if(op==3&&held){
+     // Capture the last idle position before the requested HOLD_START.
+     // A subsequent active status AND progressed step count can safely
+     // prove execution even if the I2C acknowledgement is delayed.
+     startPosition=readInt32(rx+8+4*(heldAxis-1));
+     if(!sendMotor(4,heldAxis,heldUp,0,true))held=false;
+    }
    else if(op==4){if(held){moving=true;holdOwned=true;}else sendMotor(5);}
    else if(op==10){
     if(wizardMode==2&&wizardStep==1)sendMotor(11,0,0,0,true);
