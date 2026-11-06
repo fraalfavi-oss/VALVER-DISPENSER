@@ -18,6 +18,7 @@ char hmiReason[17]={0};
 uint32_t hmiLastUartProbe=0;
 uint8_t hmiLastProcessedStartSeq=0;
 bool hmiHasProcessedStart=false;
+uint32_t hmiLastProcessedStartMs=0;
 uint32_t hmiDroppedCommands=0;
 uint32_t hmiDuplicateStarts=0;
 void hmiRx(int /*count*/) {
@@ -92,7 +93,9 @@ void hmiExecute(const HmiWireCommand& request) {
   const unsigned long id=p[2];
   // A retransmission uses the original transaction sequence. An already
   // processed HOLD_START must NEVER energize a motor a second time.
-  if(wantsAck && op==4 && hmiHasProcessedStart && hmiLastProcessedStartSeq==p[2]){
+  if(wantsAck && op==4 && hmiHasProcessedStart &&
+     hmiLastProcessedStartSeq==p[2] &&
+     (uint32_t)(millis()-hmiLastProcessedStartMs)<1200){
     hmiDuplicateStarts++;
     return;
   }
@@ -127,6 +130,7 @@ void hmiExecute(const HmiWireCommand& request) {
   if(wantsAck && op==4){
     hmiHasProcessedStart=true;
     hmiLastProcessedStartSeq=p[2];
+    hmiLastProcessedStartMs=millis();
     Serial.printf("[I2C] HOLD_START processed seq=%u axis=%u active=%u rejected=%u\n",
       p[2],axis,trial.active?1:0,hmiDispatchRejected?1:0);
   }
