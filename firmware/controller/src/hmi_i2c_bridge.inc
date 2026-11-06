@@ -27,7 +27,12 @@ void hmiRx(int /*count*/) {
   uint8_t crc=0; for(uint8_t i=0;i<8;i++)crc^=data[i];
   if(crc!=data[8])return;
   portENTER_CRITICAL(&hmiMux);
-  uint8_t next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
+  // STOP has priority over any queued movement commands.
+  // When the queue is full, non-emergency commands are dropped,
+  // but the safety STOP must still be accepted.
+  const bool isStop=(data[3]&0x7F)==2;
+  if(isStop)hmiTail=hmiHead;
+  const uint8_t next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
   if(next!=hmiTail) {
     memcpy(hmiQueue[hmiHead].p,data,sizeof(data));
     hmiHead=next;
@@ -72,7 +77,10 @@ void hmiRefresh() {
 }
 void hmiExecute(const HmiWireCommand& request) {
   const uint8_t* p=request.p;
-  const uint8_t op=p[3],axis=p[4],arg=p[5];
+  // Bit 7 requests an acknowledged command. Heartbeats/other
+  // fire-and-forget messages never overwrite a pending confirmation.
+  const bool wantsAck=(p[3]&0x80)!=0;
+  const uint8_t op=p[3]&0x7F,axis=p[4],arg=p[5];
   const uint16_t value=(uint16_t)p[6]|((uint16_t)p[7]<<8);
   const unsigned long id=p[2];
   char json[192]={0};
@@ -92,8 +100,10 @@ void hmiExecute(const HmiWireCommand& request) {
     case 13:snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"GO_TO_Z_HEIGHT\",\"axis\":%u,\"kind\":%u,\"confirm\":1}",id,axis,arg);break;
     case 14:snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"GET_DRIVER_TEST\"}",id);break;
     default:
-      hmiAckSeq=p[2];hmiAckResult=2;hmiError=1;
-      strncpy(hmiReason,"OPERACION_INVALIDA",16);
+      if(wantsAck) {
+        hmiAckSeq=p[2];hmiAckResult=2;hmiError=1;
+        strncpy(hmiReason,"OPERACION_INVALIDA",16);
+      }
       return;
   }
   hmiDispatching=true;
@@ -101,12 +111,14 @@ void hmiExecute(const HmiWireCommand& request) {
   hmiDispatchError[0]=0;
   dispatch(json); // reuse the USB controller's exact safeguards
   hmiDispatching=false;
-  hmiAckSeq=p[2]; hmiAckResult=hmiDispatchRejected?2:1;
-  hmiError=hmiDispatchRejected?1:0;
-  if(hmiDispatchRejected) {
-    strncpy(hmiReason,hmiDispatchError,16);
-    hmiReason[16]=0;
-  } else hmiReason[0]=0;
+  if(wantsAck) {
+    hmiAckSeq=p[2]; hmiAckResult=hmiDispatchRejected?2:1;
+    hmiError=hmiDispatchRejected?1:0;
+    if(hmiDispatchRejected) {
+      strncpy(hmiReason,hmiDispatchError,16);
+      hmiReason[16]=0;
+    } else hmiReason[0]=0;
+  }
 }
 void hmiService() {
   HmiWireCommand job{};
