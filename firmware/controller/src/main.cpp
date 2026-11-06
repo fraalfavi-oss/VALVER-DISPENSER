@@ -263,7 +263,15 @@ bool savePersistentSettings(){
  data.z2Rest=heights[2].rest;data.z2Dispense=heights[2].dispense;
  data.z1Flags=(heights[1].restSet?1:0)|(heights[1].dispenseSet?2:0);
  data.z2Flags=(heights[2].restSet?1:0)|(heights[2].dispenseSet?2:0);
- return savedPrefs.putBytes("cfg",&data,sizeof(data))==sizeof(data);
+ // NVS flash commits can temporarily postpone I2C status/heartbeat traffic.
+ // Preserve an already-established idle hold during this synchronous write;
+ // never enable motors or affect the active motion watchdog here.
+ if(!trial.active && (holdingAxis[1]||holdingAxis[2]))
+   holdIdleHeartbeatMs=millis();
+ const bool stored=savedPrefs.putBytes("cfg",&data,sizeof(data))==sizeof(data);
+ if(!trial.active && (holdingAxis[1]||holdingAxis[2]))
+   holdIdleHeartbeatMs=millis();
+ return stored;
 }
 void loadPersistentSettings(){
  flashReady=savedPrefs.begin("valver_z",false);
