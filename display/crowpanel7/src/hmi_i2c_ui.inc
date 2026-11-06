@@ -6,6 +6,9 @@ static uint8_t motorFlags=0;
 static uint32_t lastLink=0,lastPoll=0,lastBeat=0,waitingSince=0,lastStatusDraw=0;
 static uint8_t lastRemoteAck=0,lastRemoteStatus=0;
 static uint32_t badReadCount=0;
+static uint8_t lastCriticalPacket[9]={0};
+static uint8_t startRetryCount=0;
+static uint32_t startRetryAt=0;
 static lv_obj_t *connectionText=nullptr,*driverText=nullptr;
 static lv_obj_t *axisText[2]={nullptr,nullptr},*positionText[2]={nullptr,nullptr};
 static int32_t readInt32(const uint8_t* p){
@@ -21,7 +24,13 @@ static bool sendMotor(uint8_t op,uint8_t axis=0,uint8_t arg=0,uint16_t value=0,b
  Wire1.beginTransmission(MOTOR_I2C);
  Wire1.write(p,9);
  if(Wire1.endTransmission()!=0){motorOnline=false;return false;}
- if(ack){waitingSeq=p[2];waitingOp=op;waitingSince=millis();}
+ if(ack){
+   waitingSeq=p[2];waitingOp=op;waitingSince=millis();
+   if(op==4){
+     memcpy(lastCriticalPacket,p,sizeof(lastCriticalPacket));
+     startRetryCount=0;startRetryAt=millis();
+   }
+ }
  return true;
 }
 static void motorStop(){
@@ -155,6 +164,26 @@ static void pollMotors(){
   }
  }
  if(!wasOnline)show_notice("Controlador conectado por cable I2C");
+ // HOLD_START may be received while the controller is servicing its UART
+ // and stepping loop. Retry only WHILE the operator keeps the button pressed,
+ // with exactly the same sequence number (idempotent at the motor controller).
+ if(waitingOp==4 && held && startRetryCount<2 &&
+    (uint32_t)(now-startRetryAt)>=190){
+   Wire1.beginTransmission(MOTOR_I2C);
+   Wire1.write(lastCriticalPacket,sizeof(lastCriticalPacket));
+   const uint8_t rc=Wire1.endTransmission();
+   startRetryAt=now;
+   startRetryCount++;
+   Serial.printf("[I2C] HOLD_START retry=%u seq=%u write=%u\n",
+       (unsigned)startRetryCount,(unsigned)waitingSeq,(unsigned)rc);
+ }
+ // If the motor did start but its response is delayed, refresh its deadman
+ // before timeout. Never send movement heartbeats unless the finger is down
+ // AND the controller independently reports that an axis is active.
+ if(waitingOp==4 && held && (motorFlags&1) && (uint32_t)(now-lastBeat)>=90){
+   sendMotor(6);
+   lastBeat=now;
+ }
  // A missing ACK must never lock the touch interface indefinitely.
  if(waitingOp && (uint32_t)(now-waitingSince)>850){
   const uint8_t timedOutOp=waitingOp,timedOutSeq=waitingSeq;
