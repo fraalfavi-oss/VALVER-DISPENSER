@@ -181,21 +181,28 @@ void setup()
     PIN_FUNC_SELECT(IO_MUX_GPIO19_REG, PIN_FUNC_GPIO);
     PIN_FUNC_SELECT(IO_MUX_GPIO20_REG, PIN_FUNC_GPIO);
 
+    // Elecrow V3.0 starts I2C BEFORE the RGB controller. Reinitialise it
+    // after lcd.begin(); this ordering is important for the PCA9557/GT911.
+    const bool initial_i2c=Wire1.begin(19,20);
+    Wire1.setClock(100000);
+    Wire1.setTimeOut(50);
+    Serial.printf("[I2C] Primer inicio: %s\n",initial_i2c?"OK":"ERROR");
     if(!lcd.begin()) {
-        Serial.println("lcd.begin() failed");
+        Serial.println("[DISPLAY] lcd.begin() failed");
         return;
     }
     delay(200);
 
-    // Single I2C initialization after LCD start; 100 kHz improves
-    // tolerance to bus capacitance and USB pin conflicts during debugging.
-    Wire1.begin(19, 20);
+    Wire1.end();
+    delay(10);
+    const bool ready_i2c=Wire1.begin(19,20);
     Wire1.setClock(100000);
-    Wire1.setTimeOut(25);
-
+    Wire1.setTimeOut(50);
+    Serial.printf("[I2C] Reinicio tras LCD: %s\n",ready_i2c?"OK":"ERROR");
     lv_init();
     lv_tick_set_cb(tick_get);
-    const bool touch_ready = touch_init();
+    const bool touch_ready=ready_i2c?touch_init():false;
+    if(!ready_i2c)Serial.println("[TOUCH] GT911 omitido: I2C no inicializado");
 
     lv_color_t *frame_buffer_0 = reinterpret_cast<lv_color_t *>(lcd.bus.getFrameBuffer(0));
     lv_color_t *frame_buffer_1 = reinterpret_cast<lv_color_t *>(lcd.bus.getFrameBuffer(1));
