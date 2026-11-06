@@ -34,7 +34,8 @@ void hmiRx(int /*count*/) {
   // STOP has priority over any queued movement commands.
   // When the queue is full, non-emergency commands are dropped,
   // but the safety STOP must still be accepted.
-  const bool isStop=(data[3]&0x7F)==2;
+  const uint8_t operation=(uint8_t)(data[3]&0x7F);
+  const bool isStop=(operation==2 || operation==5);
   if(isStop)hmiTail=hmiHead;
   const uint8_t next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
   if(next!=hmiTail) {
