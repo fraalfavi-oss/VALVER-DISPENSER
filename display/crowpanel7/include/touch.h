@@ -67,9 +67,9 @@ bool touch_init(){
   const bool in_ok=touch_pca_read(0x00,input);
   const bool out_ok=touch_pca_read(PCA9557_OUTPUT,outputs);
   if(cfg_ok&&in_ok&&out_ok){
-   Serial.printf("[I2C] PCA9557 lectura: CFG=0x%02X ENTRADAS=0x%02X SALIDAS=0x%02X\\n",
+   Serial.printf("[I2C] PCA9557 lectura: CFG=0x%02X ENTRADAS=0x%02X SALIDAS=0x%02X\n",
       config,input,outputs);
-   Serial.printf("[TOUCH] PCA IO0 RST: %s; IO1 INT: %s\\n",
+   Serial.printf("[TOUCH] PCA IO0 RST: %s; IO1 INT: %s\n",
       (config&1)?"ENTRADA (liberado)":"SALIDA (atencion)",
       (config&2)?"ENTRADA (liberado)":"SALIDA (atencion)");
   }else{
