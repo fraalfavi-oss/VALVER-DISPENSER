@@ -82,3 +82,22 @@ pio run -d ".\display\crowpanel7" -t upload --upload-port COM15
 ```
 Solo CrowPanel en COM15; cerrar monitor serie antes de cargar.
 Si la pantalla sigue parpadeando, verificar alimentacion 5V y cable USB.
+
+## Pantalla: prueba de estabilidad RGB
+
+La HMI usa ahora RGB 20 MHz y actualizacion de imagen sincronizada con VSYNC.
+LVGL dibuja por partes en RAM interna (800 x 32 pixeles), no directamente
+en los fotogramas de RGB que se estan mostrando. Los dos buffers RGB
+permanecen en PSRAM.
+
+Para probar desde VS Code (solo pantalla, COM15):
+```powershell
+cd "C:\Users\franklin.fajarado\VALVER_SMART_DISPENSER"
+if (-not (Test-Path "P:\")) { subst P: "$env:USERPROFILE" }
+$env:PLATFORMIO_CORE_DIR = "P:\pio"
+git pull origin feature/hmi-pc-usb-safe
+pio run -d ".\display\crowpanel7" -t upload --upload-port COM15
+```
+Si reaparece parpadeo, abrir el monitor COM15 a 115200, reiniciar
+solo la pantalla y buscar `[RGB] VSYNC timeout`. Comprobar
+tambien alimentacion de la CrowPanel por USB-C.
