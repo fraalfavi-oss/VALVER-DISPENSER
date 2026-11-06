@@ -16,6 +16,10 @@ uint8_t hmiReport[32]={0x56,HMI_VERSION};
 uint8_t hmiAckSeq=0,hmiAckResult=0,hmiError=0;
 char hmiReason[17]={0};
 uint32_t hmiLastUartProbe=0;
+uint8_t hmiLastProcessedStartSeq=0;
+bool hmiHasProcessedStart=false;
+uint32_t hmiDroppedCommands=0;
+uint32_t hmiDuplicateStarts=0;
 void hmiRx(int /*count*/) {
   uint8_t data[9]={0}; uint8_t len=0;
   while(Wire.available()) {
@@ -36,6 +40,8 @@ void hmiRx(int /*count*/) {
   if(next!=hmiTail) {
     memcpy(hmiQueue[hmiHead].p,data,sizeof(data));
     hmiHead=next;
+  }else {
+    hmiDroppedCommands++;
   }
   portEXIT_CRITICAL(&hmiMux);
 }
@@ -83,6 +89,12 @@ void hmiExecute(const HmiWireCommand& request) {
   const uint8_t op=p[3]&0x7F,axis=p[4],arg=p[5];
   const uint16_t value=(uint16_t)p[6]|((uint16_t)p[7]<<8);
   const unsigned long id=p[2];
+  // A retransmission uses the original transaction sequence. An already
+  // processed HOLD_START must NEVER energize a motor a second time.
+  if(wantsAck && op==4 && hmiHasProcessedStart && hmiLastProcessedStartSeq==p[2]){
+    hmiDuplicateStarts++;
+    return;
+  }
   char json[192]={0};
   switch(op) {
     case 1: snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"PING\"}",id);break;
@@ -111,6 +123,12 @@ void hmiExecute(const HmiWireCommand& request) {
   hmiDispatchError[0]=0;
   dispatch(json); // reuse the USB controller's exact safeguards
   hmiDispatching=false;
+  if(wantsAck && op==4){
+    hmiHasProcessedStart=true;
+    hmiLastProcessedStartSeq=p[2];
+    Serial.printf("[I2C] HOLD_START processed seq=%u axis=%u active=%u rejected=%u\n",
+      p[2],axis,trial.active?1:0,hmiDispatchRejected?1:0);
+  }
   if(wantsAck) {
     hmiAckSeq=p[2]; hmiAckResult=hmiDispatchRejected?2:1;
     hmiError=hmiDispatchRejected?1:0;
