@@ -1,6 +1,6 @@
 // VALVER HMI wired I2C. All motor operations are validated by controller dispatch().
 static constexpr uint8_t MOTOR_I2C=0x32;
-static bool motorOnline=false,held=false,moving=false,holdOwned=false;
+static bool motorOnline=false,held=false,moving=false,autoRunning=false,holdOwned=false;
 static uint8_t txSeq=0,waitingSeq=0,waitingOp=0,heldAxis=0,heldUp=0;
 static uint8_t motorFlags=0;
 static uint32_t lastLink=0,lastPoll=0,lastBeat=0;
@@ -21,7 +21,7 @@ static bool sendMotor(uint8_t op,uint8_t axis=0,uint8_t arg=0,uint16_t value=0,b
  return true;
 }
 static void motorStop(){
- held=false;moving=false;holdOwned=false;waitingOp=0;
+ held=false;moving=false;autoRunning=false;holdOwned=false;waitingOp=0;
  show_notice(sendMotor(2)?"PARADA enviada":"SIN ENLACE: comprobar parada fisica");
 }
 static void motorRelease(){
@@ -91,7 +91,7 @@ static void pollMotors(){
  else while(Wire1.available())Wire1.read();
  if(count!=32||rx[0]!=0x56||rx[1]!=1){
   if(now-lastLink>500&&motorOnline){
-   motorOnline=false;held=false;moving=false;holdOwned=false;waitingOp=0;
+   motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;waitingOp=0;
    if(connectionText)lv_label_set_text(connectionText,"I2C: SIN ENLACE");
    if(driverText)lv_label_set_text(driverText,"DESCONECTADO");
    show_notice("Enlace perdido: movimiento bloqueado");
@@ -112,7 +112,7 @@ static void pollMotors(){
     if(wizardMode==2&&wizardStep==1)sendMotor(11,0,0,0,true);
     else{wizardStep++;wizard_render();show_notice("Posicion guardada");}
    }else if(op==11||op==12){wizardStep++;wizard_render();show_notice("Referencia registrada");}
-   else if(op==13){holdOwned=true;show_notice("Movimiento aceptado");}
+   else if(op==13){autoRunning=true;holdOwned=true;show_notice("Movimiento aceptado");}
   }
  }
  if(now%400<70){
@@ -125,7 +125,7 @@ static void pollMotors(){
   }
  }
  if(!wasOnline)show_notice("Controlador conectado por cable I2C");
- if((motorFlags&1)&&held&&moving&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
+ if((motorFlags&1)&&((held&&moving)||autoRunning)&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
  else if(holdOwned&&(motorFlags&12)&&now-lastBeat>=150){sendMotor(7);lastBeat=now;}
- if(!(motorFlags&1))moving=false;
+ if(!(motorFlags&1)){moving=false;autoRunning=false;}
 }
