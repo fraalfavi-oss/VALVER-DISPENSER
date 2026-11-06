@@ -3,7 +3,7 @@ static constexpr uint8_t MOTOR_I2C=0x32;
 static bool motorOnline=false,held=false,moving=false,autoRunning=false,holdOwned=false;
 static uint8_t txSeq=0,waitingSeq=0,waitingOp=0,heldAxis=0,heldUp=0;
 static uint8_t motorFlags=0;
-static uint32_t lastLink=0,lastPoll=0,lastBeat=0;
+static uint32_t lastLink=0,lastPoll=0,lastBeat=0,waitingSince=0,lastStatusDraw=0;
 static lv_obj_t *connectionText=nullptr,*driverText=nullptr;
 static lv_obj_t *axisText[2]={nullptr,nullptr},*positionText[2]={nullptr,nullptr};
 static int32_t readInt32(const uint8_t* p){
@@ -12,12 +12,14 @@ static int32_t readInt32(const uint8_t* p){
 }
 static bool sendMotor(uint8_t op,uint8_t axis=0,uint8_t arg=0,uint16_t value=0,bool ack=false){
  if(!motorOnline && op!=1 && op!=2)return false;
- uint8_t p[9]={0x56,1,++txSeq,op,axis,arg,(uint8_t)value,(uint8_t)(value>>8),0};
+ // The high bit requests an ACK; periodic heartbeats never invalidate it.
+ uint8_t p[9]={0x56,1,++txSeq,(uint8_t)(op|(ack?0x80:0)),axis,arg,
+               (uint8_t)value,(uint8_t)(value>>8),0};
  for(int i=0;i<8;i++)p[8]^=p[i];
  Wire1.beginTransmission(MOTOR_I2C);
  Wire1.write(p,9);
  if(Wire1.endTransmission()!=0){motorOnline=false;return false;}
- if(ack){waitingSeq=p[2];waitingOp=op;}
+ if(ack){waitingSeq=p[2];waitingOp=op;waitingSince=millis();}
  return true;
 }
 static void motorStop(){
@@ -25,8 +27,18 @@ static void motorStop(){
  show_notice(sendMotor(2)?"PARADA enviada":"SIN ENLACE: comprobar parada fisica");
 }
 static void motorRelease(){
+ const bool needStop=held||moving||(motorFlags&1)||waitingOp==3||waitingOp==4;
  held=false;
- if(moving||(motorFlags&1)){sendMotor(5);moving=false;}
+ if(needStop){
+  // Acknowledge HOLD_STOP before accepting another press. This also works
+  // when the finger is released while PREPARE/HOLD_START is still pending.
+  if(!sendMotor(5,0,0,0,true)){
+   waitingOp=0;
+   sendMotor(2); // Safe fallback: disable if STOP could not be confirmed.
+   show_notice("Error de parada: controlador deshabilitado");
+  }
+  moving=false;
+ }
 }
 void motorPress(lv_event_t *e){
  const auto ev=lv_event_get_code(e);
@@ -41,7 +53,9 @@ void motorPress(lv_event_t *e){
   ax=(wizardMode==1||(wizardMode==2&&wizardStep==2))?2:1;up=a==WIZ_UP;
  }
  if(!ax)return;
- if(!motorOnline||waitingOp||(motorFlags&1)){show_notice("Movimiento bloqueado: controlador ocupado/sin enlace");return;}
+ if(!motorOnline){show_notice("I2C SIN ENLACE: movimiento bloqueado");return;}
+ if(waitingOp){show_notice("Esperando confirmacion del controlador");return;}
+ if((motorFlags&1)||autoRunning){show_notice("Movimiento anterior aun activo");return;}
  held=true;heldAxis=ax;heldUp=up;
  if(!sendMotor(3,ax,0,0,true)){held=false;show_notice("Fallo al preparar eje");}
 }
@@ -112,10 +126,12 @@ static void pollMotors(){
     if(wizardMode==2&&wizardStep==1)sendMotor(11,0,0,0,true);
     else{wizardStep++;wizard_render();show_notice("Posicion guardada");}
    }else if(op==11||op==12){wizardStep++;wizard_render();show_notice("Referencia registrada");}
+   else if(op==5){moving=false;show_notice("Movimiento detenido, eje retenido");}
    else if(op==13){autoRunning=true;holdOwned=true;show_notice("Movimiento aceptado");}
   }
  }
- if(now%400<70){
+ if(now-lastStatusDraw>=350){
+  lastStatusDraw=now;
   if(connectionText)lv_label_set_text(connectionText,"I2C: CONECTADO 0x32");
   if(driverText)lv_label_set_text(driverText,"CONECTADO");
   for(int i=0;i<2;i++){
@@ -125,6 +141,12 @@ static void pollMotors(){
   }
  }
  if(!wasOnline)show_notice("Controlador conectado por cable I2C");
+ // A missing ACK must never lock the touch interface indefinitely.
+ if(waitingOp && (uint32_t)(now-waitingSince)>850){
+  waitingOp=0;held=false;moving=false;autoRunning=false;holdOwned=false;
+  sendMotor(2);
+  show_notice("Confirmacion agotada: PARADA automatica, verifica controlador");
+ }
  if((motorFlags&1)&&((held&&moving)||autoRunning)&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
  else if(holdOwned&&(motorFlags&12)&&now-lastBeat>=150){sendMotor(7);lastBeat=now;}
  if(!(motorFlags&1)){moving=false;autoRunning=false;}
