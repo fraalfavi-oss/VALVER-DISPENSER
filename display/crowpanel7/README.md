@@ -60,3 +60,25 @@ revision V3.0 y el puerto COM, no probar con alimentacion de motores.
 
 Para el siguiente paso se anadira comunicacion UART de 3.3V entre
 la CrowPanel y el ESP32 de motores, siempre despues de probar la UI aislada.
+
+## 2026-11-06: reducir parpadeo y activar GT911
+
+- Pixel clock RGB ajustado de 24MHz a 15MHz (temporizacion documentada para V3).
+- I2C de GT911 a 100kHz; GPIO19 y GPIO20 liberados del USB Serial/JTAG.
+- GT911 se inicia sin escribir al expansor PCA9557 y prueba 0x5D y 0x14.
+- Diagnostico: etiqueta TACTIL OK 0x5D / 0x14 o SIN RESPUESTA.
+- En DIAGNOSTICO aparece ULTIMO TOQUE X/Y, y en el monitor COM15
+  la linea `[TOUCH] X=... Y=...` cuando empieza un toque.
+- Si el touch sigue sin respuesta: comprobar revision V3.0 y ver
+  `[TOUCH] GT911 no responde...` en serial a 115200, antes de cambiar pines.
+
+Comandos (sin administrador) desde VS Code:
+```powershell
+cd "C:\Users\franklin.fajarado\VALVER_SMART_DISPENSER"
+if (-not (Test-Path "P:\")) { subst P: "$env:USERPROFILE" }
+$env:PLATFORMIO_CORE_DIR = "P:\pio"
+git pull origin feature/hmi-pc-usb-safe
+pio run -d ".\display\crowpanel7" -t upload --upload-port COM15
+```
+Solo CrowPanel en COM15; cerrar monitor serie antes de cargar.
+Si la pantalla sigue parpadeando, verificar alimentacion 5V y cable USB.
