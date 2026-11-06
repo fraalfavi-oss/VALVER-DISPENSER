@@ -97,7 +97,8 @@ bool touch_init(){
   delay(150);
  }
 
- for(const uint8_t address:{GT911_ADDRESS_A,GT911_ADDRESS_B}){
+ const uint8_t candidates[2]={GT911_ADDRESS_A,GT911_ADDRESS_B};
+ for(const uint8_t address:candidates){
   if(!touch_i2c_ack(address)){
    Serial.printf("[I2C] GT911 0x%02X: SIN RESPUESTA\n",address);
    continue;
