@@ -24,7 +24,9 @@ static int controllerReply(const char* fmt,...){
   va_end(args);
   if(result<=0)return result;
   size_t written=(size_t)result<sizeof(out)?(size_t)result:sizeof(out)-1;
-  Serial.write((const uint8_t*)out,written);
+  // I2C dispatch must never wait on USB/CH340 serial output.
+  // Its result is delivered by the I2C response and failure flags below.
+  if(!hmiDispatching)Serial.write((const uint8_t*)out,written);
   if(hmiDispatching && strstr(out,"\"status\":\"ERROR\"")){
     hmiDispatchRejected=true;
     const char* p=strstr(out,"\"code\":\"");
