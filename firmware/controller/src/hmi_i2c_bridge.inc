@@ -15,7 +15,6 @@ portMUX_TYPE hmiMux=portMUX_INITIALIZER_UNLOCKED;
 uint8_t hmiReport[32]={0x56,HMI_VERSION};
 uint8_t hmiAckSeq=0,hmiAckResult=0,hmiError=0;
 char hmiReason[17]={0};
-uint32_t hmiLastUartProbe=0;
 uint8_t hmiLastProcessedStartSeq=0;
 bool hmiHasProcessedStart=false;
 uint32_t hmiLastProcessedStartMs=0;
@@ -155,11 +154,8 @@ void hmiService() {
   }
   portEXIT_CRITICAL(&hmiMux);
   if(pending)hmiExecute(job);
-  // Diagnostic UART readbacks only when no axis is stepping.
-  if(!trial.active && (uint32_t)(millis()-hmiLastUartProbe)>2500) {
-    hmiLastUartProbe=millis();
-    probeStall(1);probeStall(2);
-  }
+  // Periodic UART recovery is owned by serviceTmcAutoLink() in the
+  // motor loop. Avoid double probing the TMC drivers on the I2C path.
   hmiRefresh();
 }
 void hmiInit() {
