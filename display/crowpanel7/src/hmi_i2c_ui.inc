@@ -128,7 +128,11 @@ static void pollMotors(){
  else while(Wire1.available())Wire1.read();
  if(count!=32||rx[0]!=0x56||rx[1]!=1){
   badReadCount++;
-  if(now-lastLink>500&&motorOnline){
+  // Flash/NVS can suspend the I2C reply briefly during height saves.
+  // Grace applies only to stationary configuration, never to motion.
+  const bool savingConfig=(waitingOp==8||waitingOp==10||waitingOp==11);
+  const uint32_t linkGraceMs=savingConfig?3000UL:500UL;
+  if((uint32_t)(now-lastLink)>linkGraceMs&&motorOnline){
    motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
    startUnconfirmedNotice=false;waitingOp=0;
    if(connectionText)lv_label_set_text(connectionText,"I2C: SIN ENLACE");
@@ -164,8 +168,16 @@ static void pollMotors(){
      else show_notice("PING I2C: respuesta rechazada");
    }
    if(rx[3]==2){
-   char msg[70];snprintf(msg,sizeof(msg),"ORDEN RECHAZADA: %.15s",(char*)(rx+16));
-   held=false;moving=false;show_notice(msg);
+   // Reject and keep the current wizard step; no unverified save proceeds.
+   if((op==10||op==11||op==12) &&
+      strncmp((const char*)(rx+16),"HOLD_MOTOR_WHIL",15)==0)
+     show_notice("Eje sin retencion: mover, soltar y volver a guardar");
+   else{
+     char msg[70];
+     snprintf(msg,sizeof(msg),"ORDEN RECHAZADA: %.15s",(char*)(rx+16));
+     show_notice(msg);
+   }
+   held=false;moving=false;
   }else if(rx[3]==1){
    if(op==3&&held){
      // HOLD_START is issued once while the finger remains down. The
@@ -219,18 +231,34 @@ static void pollMotors(){
     startUnconfirmedNotice=true;
     show_notice("Arranque pendiente de confirmar; soltar para detener");
  }
- // A missing ACK must never lock the touch interface indefinitely.
- if(waitingOp && (uint32_t)(now-waitingSince)>850){
+ // Height saves and NVS copies can be slower than motion commands.
+ // A missing configuration ACK must NOT trigger DISABLE_CHANNELS:
+ // that would invalidate the physical Z reference mid-calibration.
+ const bool configCommand=(waitingOp==8||waitingOp==9||
+      waitingOp==10||waitingOp==11||waitingOp==12);
+ const uint32_t ackTimeoutMs=configCommand?6500UL:850UL;
+ if(waitingOp && (uint32_t)(now-waitingSince)>ackTimeoutMs){
   const uint8_t timedOutOp=waitingOp,timedOutSeq=waitingSeq;
-  waitingOp=0;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
-  sendMotor(2);
-  char details[140];
-  snprintf(details,sizeof(details),
-   "ACK agotado op=%u seq=%u recibido=%u estado=%u lecturas_fail=%lu",
-   (unsigned)timedOutOp,(unsigned)timedOutSeq,
-   (unsigned)lastRemoteAck,(unsigned)lastRemoteStatus,
-   (unsigned long)badReadCount);
-  show_notice(details);
+  waitingOp=0;
+  if(configCommand){
+    // Never advance the calibration wizard without confirmation.
+    // Operator may retry the current OK/save step once the link is healthy.
+    char msg[120];
+    snprintf(msg,sizeof(msg),
+     "Sin confirmar guardado/copia op=%u seq=%u; repetir OK",
+     (unsigned)timedOutOp,(unsigned)timedOutSeq);
+    show_notice(msg);
+  }else{
+    held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
+    sendMotor(2);
+    char details[140];
+    snprintf(details,sizeof(details),
+     "ACK movimiento agotado op=%u seq=%u recibido=%u estado=%u fail=%lu",
+     (unsigned)timedOutOp,(unsigned)timedOutSeq,
+     (unsigned)lastRemoteAck,(unsigned)lastRemoteStatus,
+     (unsigned long)badReadCount);
+    show_notice(details);
+  }
  }
  if((motorFlags&1)&&autoRunning&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
  else if(holdOwned&&(motorFlags&12)&&now-lastBeat>=150){sendMotor(7);lastBeat=now;}
