@@ -320,6 +320,43 @@ void parkTrial(){
  holdIdleHeartbeatMs=millis();
  armedAxis=0;armedMa=0;armedAt=0;
 }
+// The motor drivers may power up later than the USB-powered ESP32.
+// Recover their UART links while idle. Never enable motor outputs here.
+constexpr uint32_t TMC_AUTO_PROBE_MS=800;
+constexpr uint32_t TMC_UART_RECOVER_MS=5000;
+uint32_t tmcLastProbeAt=0;
+uint32_t tmcLastRestartAt[3]={0,0,0};
+uint8_t tmcFailures[3]={0,0,0};
+uint8_t tmcGoodReads[3]={0,0,0};
+void serviceTmcAutoLink(){
+  if(COLD_INSPECTION_ONLY || trial.active || holdingAxis[1] || holdingAxis[2])return;
+  const uint32_t now=millis();
+  if((uint32_t)(now-tmcLastProbeAt)<TMC_AUTO_PROBE_MS)return;
+  tmcLastProbeAt=now;
+  for(uint8_t axis=1;axis<=2;axis++){
+    const bool responsive=probeStall(axis); // read-only IOIN.VERSION==0x21
+    if(responsive){
+      if(tmcGoodReads[axis]<2)tmcGoodReads[axis]++;
+      tmcFailures[axis]=0;
+    }else{
+      tmcGoodReads[axis]=0;
+      if(tmcFailures[axis]<10)tmcFailures[axis]++;
+      if(tmcFailures[axis]<4 || (uint32_t)(now-tmcLastRestartAt[axis])<TMC_UART_RECOVER_MS)
+        continue;
+      // Rebuild just the ESP32 UART peripheral, not the stepper configuration.
+      // Motor EN pins remain disabled. The next probe verifies the link again.
+      HardwareSerial &port=axis==1?stallSerialZ1:stallSerialZ2;
+      port.end();
+      port.begin(UART_BAUD,SERIAL_8N1,
+        axis==1?UART_Z1_RX:UART_Z2_RX,
+        axis==1?UART_Z1_TX:UART_Z2_TX);
+      port.setTimeout(15);
+      stall[axis].uart=false;
+      tmcFailures[axis]=0;
+      tmcLastRestartAt[axis]=now;
+    }
+  }
+}
 void serviceHold(){
  if(!holdingAxis[1]&&!holdingAxis[2])return;
  if((uint32_t)(millis()-holdIdleHeartbeatMs)>HOLD_IDLE_TIMEOUT_MS){
@@ -819,6 +856,7 @@ void setup(){
  hmiInit();
 }
 void loop(){
+ serviceTmcAutoLink();
  hmiService();
  while(Serial.available()>0){
    char c=(char)Serial.read();
