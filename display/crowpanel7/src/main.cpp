@@ -7,6 +7,10 @@
 #include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 #include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
 #include <lvgl.h>
+#include "soc/soc.h"
+#include "soc/io_mux_reg.h"
+#include "soc/usb_serial_jtag_reg.h"
+#include "hal/usb_serial_jtag_ll.h"
 
 
 #include "valver_ui.h"
@@ -52,7 +56,9 @@ public:
         bus_config.pin_vsync = GPIO_NUM_40;
         bus_config.pin_hsync = GPIO_NUM_39;
         bus_config.pin_pclk = GPIO_NUM_0;
-        bus_config.freq_write = 24000000;
+        // V3.0 tested LCD timing is 15 MHz. 24 MHz can starve RGB DMA
+        // during touch I2C reads and produce visible flicker/tearing.
+        bus_config.freq_write = 15000000;
         bus_config.hsync_polarity = 0;
         bus_config.hsync_front_porch = 40;
         bus_config.hsync_pulse_width = 48;
@@ -160,8 +166,14 @@ void setup()
 {
     Serial.begin(115200);
 
-    Wire1.begin(19, 20);
-    Wire1.setClock(400000);
+    // GPIO19/20 share the ESP32-S3 native USB-JTAG PHY. This board's
+    // external CH340 on COM15 remains available for logging/programming.
+    // Return the shared pads to ordinary GPIO before using GT911 I2C.
+    usb_serial_jtag_ll_phy_enable_pad(false);
+    CLEAR_PERI_REG_MASK(USB_SERIAL_JTAG_CONF0_REG, USB_SERIAL_JTAG_USB_PAD_ENABLE);
+    CLEAR_PERI_REG_MASK(USB_SERIAL_JTAG_CONF0_REG, USB_SERIAL_JTAG_DP_PULLUP);
+    PIN_FUNC_SELECT(IO_MUX_GPIO19_REG, PIN_FUNC_GPIO);
+    PIN_FUNC_SELECT(IO_MUX_GPIO20_REG, PIN_FUNC_GPIO);
 
     if(!lcd.begin()) {
         Serial.println("lcd.begin() failed");
@@ -169,14 +181,15 @@ void setup()
     }
     delay(200);
 
-    Wire1.end();
-    delay(10);
+    // Single I2C initialization after LCD start; 100 kHz improves
+    // tolerance to bus capacitance and USB pin conflicts during debugging.
     Wire1.begin(19, 20);
-    Wire1.setClock(400000);
+    Wire1.setClock(100000);
+    Wire1.setTimeOut(25);
 
     lv_init();
     lv_tick_set_cb(tick_get);
-    touch_init();
+    const bool touch_ready = touch_init();
 
     lv_color_t *frame_buffer_0 = reinterpret_cast<lv_color_t *>(lcd.bus.getFrameBuffer(0));
     lv_color_t *frame_buffer_1 = reinterpret_cast<lv_color_t *>(lcd.bus.getFrameBuffer(1));
@@ -201,6 +214,9 @@ void setup()
     digitalWrite(BACKLIGHT_PIN, HIGH);
 
     valver_ui_init();
+    valver_ui_set_touch_status(touch_ready ? touch_address : 0);
+    Serial.printf("[DISPLAY] VALVER 800x480, RGB 15MHz, GT911 %s\n",
+                  touch_ready ? "OK" : "NO DETECTADO");
 }
 
 /*---------------------------------------------------------------
