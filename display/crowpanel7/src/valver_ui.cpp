@@ -13,6 +13,7 @@ constexpr uint32_t TEXT=0xEDF7FF, SUB=0xA8C5D6, CYAN=0x85D9F6;
 lv_obj_t *pages[4]={nullptr,nullptr,nullptr,nullptr};
 lv_obj_t *navBtn[4]={nullptr,nullptr,nullptr,nullptr};
 lv_obj_t *notice=nullptr,*counterLabel=nullptr,*speedLabel=nullptr;
+lv_obj_t *touchTop=nullptr,*touchDiag=nullptr,*touchCoords=nullptr;
 lv_obj_t *wizardPick=nullptr,*wizardWork=nullptr,*wizardDone=nullptr;
 lv_obj_t *wizardChoice[3]={nullptr,nullptr,nullptr};
 lv_obj_t *wizardStepLabel=nullptr,*wizardHelp=nullptr,*wizardProgress=nullptr;
@@ -188,7 +189,7 @@ void make_header(lv_obj_t* root){
  lv_obj_set_style_radius(top,0,0);
  label(top,14,12,230,"VALVER",TEXT,true);
  label(top,137,17,330,"SMART DISPENSER  |  PANTALLA 7 PULGADAS",SUB);
- label(top,598,18,193,"SOLO PRUEBA DE PANTALLA",CYAN);
+ touchTop=label(top,591,18,205,"TACTIL: comprobando",CYAN);
  lv_obj_t* side=panel(root,0,55,130,425,PANEL);
  lv_obj_set_style_radius(side,0,0);
  navBtn[0]=btn(side,6,9,118,51,"CONTROL Z",BLUE,NAV0);
@@ -273,6 +274,8 @@ void make_diag(){
  label(a,16,93,618,"TACTIL GT911: prueba tocando los controles.",TEXT);
  label(a,16,127,618,"COMUNICACION CON MOTORES: SIN CONECTAR",SUB);
  label(a,16,161,618,"SALIDAS MOTORES: DESHABILITADAS",SUB);
+ touchDiag=label(a,16,196,620,"GT911: comprobando direccion I2C",CYAN);
+ touchCoords=label(a,16,258,620,"ULTIMO TOQUE: ninguno",SUB);
  counterLabel=label(a,16,228,617,"TOQUES DETECTADOS: 0",CYAN,true);
 }
 } // namespace
@@ -292,6 +295,25 @@ void valver_ui_init(){
  make_diag();
  show_page(0);
  show_notice("VALVER: pantalla inicializada. MODO DEMO SIN MOTORES.");
+}
+void valver_ui_set_touch_status(uint8_t i2c_address){
+ char str[100];
+ if(i2c_address){
+  snprintf(str,sizeof(str),"TACTIL: OK 0x%02X",i2c_address);
+  if(touchTop)lv_label_set_text(touchTop,str);
+  snprintf(str,sizeof(str),"GT911: detectado en I2C 0x%02X - listo",i2c_address);
+  if(touchDiag)lv_label_set_text(touchDiag,str);
+ }else{
+  if(touchTop)lv_label_set_text(touchTop,"TACTIL: SIN RESPUESTA");
+  if(touchDiag)lv_label_set_text(touchDiag,"GT911 NO DETECTADO en 0x5D / 0x14");
+ }
+}
+void valver_ui_note_touch(int x,int y){
+ if(touchCoords){
+  char msg[70];
+  snprintf(msg,sizeof(msg),"ULTIMO TOQUE: X=%d  Y=%d",x,y);
+  lv_label_set_text(touchCoords,msg);
+ }
 }
 void valver_ui_tick(){
  // Maintain a cheap tick hook for future UART integration.
