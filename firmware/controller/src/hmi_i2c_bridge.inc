@@ -23,6 +23,11 @@ uint32_t hmiLastSavedAt=0;
 uint32_t hmiLastProcessedStartMs=0;
 uint32_t hmiDroppedCommands=0;
 uint32_t hmiDuplicateStarts=0;
+// The idle hold heartbeat must not compete with flash saves or other
+// queued messages. Receive its timestamp immediately in the I2C callback.
+// No motor I/O is performed in this callback.
+volatile uint32_t hmiIdleBeatRxAt=0;
+uint32_t hmiIdleBeatAppliedAt=0;
 void hmiRx(int /*count*/) {
   uint8_t data[9]={0}; uint8_t len=0;
   while(Wire.available()) {
@@ -33,6 +38,10 @@ void hmiRx(int /*count*/) {
   if(len!=sizeof(data)||data[0]!=0x56||data[1]!=HMI_VERSION)return;
   uint8_t crc=0; for(uint8_t i=0;i<8;i++)crc^=data[i];
   if(crc!=data[8])return;
+  if((data[3]&0x7F)==7) {
+    hmiIdleBeatRxAt=millis();
+    return;
+  }
   portENTER_CRITICAL(&hmiMux);
   // STOP has priority over any queued movement commands.
   // When the queue is full, non-emergency commands are dropped,
@@ -174,6 +183,17 @@ void hmiExecute(const HmiWireCommand& request) {
   // No Serial.printf here: USB logging must not delay the stepper deadman.
 }
 void hmiService() {
+  // A valid dedicated I2C idle heartbeat keeps the session reference
+  // only while BOTH the screen and motor controller remain powered.
+  // A lost heartbeat still reaches the existing HOLD_IDLE_TIMEOUT_MS
+  // failsafe in serviceHold(). This never re-references after reset.
+  const uint32_t lastBeat=hmiIdleBeatRxAt;
+  if(lastBeat!=hmiIdleBeatAppliedAt) {
+    hmiIdleBeatAppliedAt=lastBeat;
+    if((holdingAxis[1]||holdingAxis[2]) &&
+       (uint32_t)(millis()-lastBeat)<300UL)
+      holdIdleHeartbeatMs=lastBeat;
+  }
   HmiWireCommand job{};
   bool pending=false;
   portENTER_CRITICAL(&hmiMux);
