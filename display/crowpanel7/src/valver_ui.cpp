@@ -15,10 +15,8 @@ lv_obj_t *pages[4]={nullptr,nullptr,nullptr,nullptr};
 lv_obj_t *navBtn[4]={nullptr,nullptr,nullptr,nullptr};
 lv_obj_t *notice=nullptr,*counterLabel=nullptr,*speedLabel=nullptr;
 lv_obj_t *touchTop=nullptr,*touchDiag=nullptr,*touchCoords=nullptr;
-lv_obj_t *wizardPick=nullptr,*wizardWork=nullptr,*wizardDone=nullptr;
-lv_obj_t *wizardDoneTitle=nullptr,*wizardDoneInfo=nullptr;
-lv_obj_t *restButtonText[2]={nullptr,nullptr},*dispButtonText[2]={nullptr,nullptr};
-lv_obj_t *wizardNextButton=nullptr;
+lv_obj_t *wizardPick=nullptr,*wizardWork=nullptr;
+// CONTROL Z uses clean buttons: labels never include numeric coordinates.
 lv_obj_t *wizardChoice[3]={nullptr,nullptr,nullptr};
 lv_obj_t *wizardStepLabel=nullptr,*wizardHelp=nullptr,*wizardProgress=nullptr;
 uint8_t currentPage=0, wizardMode=0, wizardStep=0;
@@ -103,22 +101,11 @@ void show_page(uint8_t index){
  }
 }
 void wizard_render(){
+ // One tap to choose Z1 or Z2; after saving both heights return here.
  lv_obj_add_flag(wizardPick,LV_OBJ_FLAG_HIDDEN);
  lv_obj_add_flag(wizardWork,LV_OBJ_FLAG_HIDDEN);
- lv_obj_add_flag(wizardDone,LV_OBJ_FLAG_HIDDEN);
  if(!wizardRunning){
   lv_obj_remove_flag(wizardPick,LV_OBJ_FLAG_HIDDEN);
-  return;
- }
- if(wizardStep>=2){
-  lv_obj_remove_flag(wizardDone,LV_OBJ_FLAG_HIDDEN);
-  lv_label_set_text(wizardDoneTitle,wizardMode==0?"Z1 CALIBRADO":"Z2 CALIBRADO");
-  lv_label_set_text(wizardDoneInfo,
-    "Dispensacion y reposo guardados en el controlador.\n"
-    "Disponibles en los botones de CONTROL Z.");
-  lv_obj_t* nextLabel=lv_obj_get_child(wizardNextButton,0);
-  if(nextLabel)lv_label_set_text(nextLabel,
-    wizardMode==0?"CALIBRAR Z2":"RECALIBRAR Z2");
   return;
  }
  lv_obj_remove_flag(wizardWork,LV_OBJ_FLAG_HIDDEN);
@@ -169,11 +156,9 @@ void make_home(){
   axisText[i]=label(card,12,41,287,"TMC2209: verificando",SUB);
   btn(card,12,72,146,48,"SUBIR",BLUE,i==0?Z1_UP:Z2_UP);
   btn(card,168,72,145,48,"BAJAR",BLUE,i==0?Z1_DOWN:Z2_DOWN);
-  lv_obj_t* restButton=btn(card,12,132,146,48,"REPOSO",GREEN,i==0?Z1_REST:Z2_REST);
-  lv_obj_t* dispButton=btn(card,168,132,145,48,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
-  restButtonText[i]=lv_obj_get_child(restButton,0);
-  dispButtonText[i]=lv_obj_get_child(dispButton,0);
-  positionText[i]=label(card,12,197,300,"Posicion: sin referencia",SUB);
+  btn(card,12,132,146,48,"REPOSO",GREEN,i==0?Z1_REST:Z2_REST);
+  btn(card,168,132,145,48,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
+  positionText[i]=label(card,12,197,300,"ALTURAS: SIN CONFIGURAR",SUB);
  }
  lv_obj_t* speed=panel(p,5,244,656,84,PANEL);
  speedLabel=label(speed,14,6,600,"Velocidad: 1600 micropasos/s",TEXT);
@@ -190,10 +175,10 @@ void make_calibration(){
  wizardPick=panel(p,5,4,655,330,PANEL);
  label(wizardPick,16,16,610,"CALIBRAR ALTURAS",CYAN,true);
  label(wizardPick,16,61,620,"Selecciona la aguja. Cada una guarda sus propias alturas.",SUB);
- wizardChoice[0]=btn(wizardPick,16,118,304,75,"CALIBRAR Z1",GREEN,PICK_Z1);
- wizardChoice[1]=btn(wizardPick,335,118,304,75,"CALIBRAR Z2",BLUE,PICK_Z2);
- label(wizardPick,16,238,610,"1. Dispensacion    2. Reposo    3. Guardado automatico",TEXT);
- label(wizardPick,16,278,610,"Sin copiar valores entre motores.",SUB);
+ wizardChoice[0]=btn(wizardPick,16,118,304,75,"Z1",GREEN,PICK_Z1);
+ wizardChoice[1]=btn(wizardPick,335,118,304,75,"Z2",BLUE,PICK_Z2);
+ label(wizardPick,16,238,610,"Cada OK guarda la altura actual.",TEXT);
+ label(wizardPick,16,278,610,"Selecciona el eje que deseas calibrar.",SUB);
 
  wizardWork=panel(p,5,4,655,330,PANEL);
  wizardStepLabel=label(wizardWork,16,13,450,"Z1 - DISPENSACION",CYAN,true);
@@ -204,12 +189,6 @@ void make_calibration(){
  btn(wizardWork,16,223,190,57,"CANCELAR",RED,WIZ_CANCEL);
  btn(wizardWork,221,223,418,57,"OK - GUARDAR POSICION",GREEN,WIZ_OK);
 
- wizardDone=panel(p,5,4,655,330,PANEL);
- wizardDoneTitle=label(wizardDone,20,30,618,"Z1 CALIBRADO",CYAN,true);
- wizardDoneInfo=label(wizardDone,20,107,615,"Alturas guardadas.",TEXT);
- label(wizardDone,20,174,614,"CONTROL Z muestra las alturas de cada eje.",SUB);
- wizardNextButton=btn(wizardDone,20,217,294,61,"CALIBRAR Z2",BLUE,WIZ_NEXT);
- btn(wizardDone,331,217,304,61,"CONTROL Z",GREEN,WIZ_HOME);
  wizard_render();
 }
 void make_origin(){
