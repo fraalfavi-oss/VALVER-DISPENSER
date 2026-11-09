@@ -156,8 +156,8 @@ void make_home(){
   axisText[i]=label(card,12,41,287,"TMC2209: verificando",SUB);
   btn(card,12,72,146,48,"SUBIR",BLUE,i==0?Z1_UP:Z2_UP);
   btn(card,168,72,145,48,"BAJAR",BLUE,i==0?Z1_DOWN:Z2_DOWN);
-  btn(card,12,132,146,48,"REPOSO",GREEN,i==0?Z1_REST:Z2_REST);
-  btn(card,168,132,145,48,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
+  // Automatic movement: COM5 retracts the other syringe first.
+  btn(card,12,132,301,52,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
   positionText[i]=label(card,12,197,300,"ALTURAS: SIN CONFIGURAR",SUB);
  }
  lv_obj_t* speed=panel(p,5,244,656,84,PANEL);
