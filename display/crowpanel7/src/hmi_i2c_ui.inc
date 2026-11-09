@@ -466,8 +466,9 @@ static void pollMotors(){
  // calibrated axes can still be stationary during pair phase 1 or 3.
  static uint32_t lastMotionBeat=0,lastIdleBeat=0;
  const bool expectedAuto=(pairPhase!=0 || waitingOp==13 || autoRunning);
- const bool expectedManual=held && (startPending || moving);
- if(expectedAuto || expectedManual){
+ // Manual pressing already feeds op=6 in its own original path above.
+ // Avoid duplicate heartbeats congesting the I2C bus.
+ if(expectedAuto){
    if((uint32_t)(now-lastMotionBeat)>=75){
      sendMotor(6);lastMotionBeat=now;
    }
