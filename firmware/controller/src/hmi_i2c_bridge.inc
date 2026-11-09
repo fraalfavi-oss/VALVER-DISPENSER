@@ -17,6 +17,9 @@ uint8_t hmiAckSeq=0,hmiAckResult=0,hmiError=0;
 char hmiReason[17]={0};
 uint8_t hmiLastProcessedStartSeq=0;
 bool hmiHasProcessedStart=false;
+uint8_t hmiLastSavedSeq=0;
+bool hmiHasSavedSequence=false;
+uint32_t hmiLastSavedAt=0;
 uint32_t hmiLastProcessedStartMs=0;
 uint32_t hmiDroppedCommands=0;
 uint32_t hmiDuplicateStarts=0;
@@ -111,6 +114,14 @@ void hmiExecute(const HmiWireCommand& request) {
     hmiDuplicateStarts++;
     return;
   }
+  // SAVE_Z_HEIGHT is retried with the same sequence if flash/I2C delays
+  // its ACK. Never execute the same transaction twice: a late duplicate
+  // must not overwrite a height after the operator has moved the nozzle.
+  if(wantsAck && op==10 && hmiHasSavedSequence &&
+     hmiLastSavedSeq==p[2] &&
+     (uint32_t)(millis()-hmiLastSavedAt)<9000UL){
+     return; // Keep the existing latest ACK; do not roll it backwards.
+  }
   char json[192]={0};
   switch(op) {
     case 1: snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"PING\"}",id);break;
@@ -147,6 +158,11 @@ void hmiExecute(const HmiWireCommand& request) {
       strncpy(hmiReason,hmiDispatchError,16);
       hmiReason[16]=0;
     } else hmiReason[0]=0;
+  }
+  if(wantsAck && op==10){
+    hmiHasSavedSequence=true;
+    hmiLastSavedSeq=p[2];
+    hmiLastSavedAt=millis();
   }
   if(wantsAck && op==4) {
     hmiHasProcessedStart=true;
