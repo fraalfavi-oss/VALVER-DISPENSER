@@ -2,7 +2,8 @@
 static constexpr uint8_t MOTOR_I2C=0x32;
 static bool motorOnline=false,held=false,moving=false,autoRunning=false,holdOwned=false;
 static uint8_t txSeq=0,waitingSeq=0,waitingOp=0,heldAxis=0,heldUp=0;
-static uint8_t motorFlags=0;
+static uint8_t motorFlags=0,motorMarks=0,motorFresh=0;
+static int32_t zPos[2]={0,0},zRest[2]={0,0},zDisp[2]={0,0};
 static uint8_t previousTmcReady=0;
 static uint32_t lastLink=0,lastPoll=0,lastBeat=0,waitingSince=0,lastStatusDraw=0;
 static uint8_t lastRemoteAck=0,lastRemoteStatus=0;
@@ -14,6 +15,14 @@ static int32_t startPosition=0;
 static bool startPending=false;
 static uint32_t startSentAt=0;
 static bool startUnconfirmedNotice=false;
+// Paired dispense control is a single operator action with two interlocked
+// sequential strokes: retract the OTHER needle, then dispense the SELECTED.
+// Never command both needles into the work zone at the same time.
+static uint8_t pairPhase=0,pairChosen=0,pairOther=0;
+static uint32_t pairPhaseStarted=0;
+static bool wizardSwitchingAxis=false;
+static uint8_t pendingSaveAxis=0,pendingSaveKind=0;
+static int32_t pendingSavePosition=0;
 static lv_obj_t *connectionText=nullptr,*driverText=nullptr;
 static lv_obj_t *axisText[2]={nullptr,nullptr},*positionText[2]={nullptr,nullptr};
 static int32_t readInt32(const uint8_t* p){
@@ -40,7 +49,7 @@ static bool sendMotor(uint8_t op,uint8_t axis=0,uint8_t arg=0,uint16_t value=0,b
 }
 static void motorStop(){
  held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
- startUnconfirmedNotice=false;waitingOp=0;
+ startUnconfirmedNotice=false;waitingOp=0;pairPhase=0;wizardSwitchingAxis=false;
  show_notice(sendMotor(2)?"PARADA enviada":"SIN ENLACE: comprobar parada fisica");
 }
 static void motorRelease(){
@@ -71,6 +80,7 @@ void motorPress(lv_event_t *e){
  }
  if(!ax)return;
  if(!motorOnline){show_notice("I2C SIN ENLACE: movimiento bloqueado");return;}
+ if(pairPhase){show_notice("Cambio de agujas en curso");return;}
  if(waitingOp){show_notice("Esperando confirmacion del controlador");return;}
  if((motorFlags&1)||autoRunning){show_notice("Movimiento anterior aun activo");return;}
  held=true;heldAxis=ax;heldUp=up;
@@ -97,26 +107,53 @@ void on_action(lv_event_t* e){
  }
  if(a==Z1_UP||a==Z1_DOWN||a==Z2_UP||a==Z2_DOWN||a==WIZ_UP||a==WIZ_DOWN)return;
  if(a==Z1_REST||a==Z1_DISP||a==Z2_REST||a==Z2_DISP){
-  uint8_t ax=(a==Z1_REST||a==Z1_DISP)?1:2;
-  uint8_t kind=(a==Z1_REST||a==Z2_REST)?1:2;
-  if(!motorOnline||!(motorFlags&(ax==1?16:32))||waitingOp){show_notice("Origen sin validar o controlador ocupado");return;}
-  if(!sendMotor(13,ax,kind,0,true))show_notice("Error al enviar desplazamiento");
-  else show_notice("Desplazamiento solicitado");return;
+  const uint8_t ax=(a==Z1_REST||a==Z1_DISP)?1:2;
+  const uint8_t kind=(a==Z1_REST||a==Z2_REST)?1:2;
+  if(!motorOnline || waitingOp || pairPhase || held || (motorFlags&1)){
+    show_notice("Controlador ocupado o sin enlace");return;
+  }
+  if(kind==2){
+    // Both independent calibrations, known origins and holding torque are
+    // mandatory before any coordinated dispense request.
+    if((motorFlags&0x3C)!=0x3C || (motorMarks&0x0F)!=0x0F){
+      show_notice("Calibrar y referenciar Z1/Z2 antes de dispensar");return;
+    }
+    pairChosen=ax;pairOther=ax==1?2:1;pairPhase=1;
+    pairPhaseStarted=millis();
+    if(!sendMotor(13,pairOther,1,0,true)){
+      pairPhase=0;show_notice("No se pudo solicitar reposo opuesto");
+    }else show_notice("Control cruzado: retirando aguja contraria");
+    return;
+  }
+  if(!(motorFlags&(ax==1?16:32)) || !(motorFlags&(ax==1?4:8))){
+    show_notice("Eje sin origen/retencion: calibrar primero");return;
+  }
+  if(!sendMotor(13,ax,kind,0,true))show_notice("No se pudo solicitar reposo");
+  else show_notice("Desplazamiento a reposo solicitado");
+  return;
  }
  if(a>=PICK_Z1&&a<=PICK_BOTH){wizardMode=(uint8_t)(a-PICK_Z1);wizard_render();return;}
  if(a==BEGIN||a==WIZ_RESTART){
   if(!motorOnline||waitingOp){show_notice("Sin controlador disponible");return;}
-  wizardRunning=true;wizardStep=0;
+  wizardRunning=true;wizardStep=0;wizardSwitchingAxis=false;pairPhase=0;
   if(!sendMotor(9,wizardMode==1?2:1,0,0,true))wizardRunning=false;
   wizard_render();return;
  }
- if(a==WIZ_CANCEL){motorRelease();wizardRunning=false;wizardStep=0;wizard_render();return;}
+ if(a==WIZ_CANCEL){motorRelease();wizardRunning=false;wizardStep=0;wizardSwitchingAxis=false;wizard_render();return;}
  if(a==WIZ_OK){
   if(!wizardRunning||waitingOp||held||(motorFlags&1)){show_notice("Suelta el motor antes de guardar");return;}
-  const uint8_t ax=(wizardMode==1||(wizardMode==2&&wizardStep==2))?2:1;
-  const bool ok=wizardMode==2&&wizardStep==2?
-    sendMotor(12,2,0,0,true):sendMotor(10,ax,wizardStep==0?2:1,0,true);
-  if(!ok)show_notice("No se pudo guardar la posicion");return;
+  const uint8_t ax=(wizardMode==1||(wizardMode==2&&wizardStep>=2))?2:1;
+  const uint8_t kind=(wizardStep%2==0)?2:1;
+  if(!(motorFlags&(ax==1?4:8))){
+    show_notice("Eje sin retencion: mover, soltar y guardar");return;
+  }
+  pendingSaveAxis=ax;pendingSaveKind=kind;
+  pendingSavePosition=zPos[ax-1];
+  if(!sendMotor(10,ax,kind,0,true))
+    show_notice("No se pudo enviar guardado");
+  else
+    show_notice("Guardando altura en controlador...");
+  return;
  }
  if(a==WIZ_HOME){show_page(0);return;}
  if(a==ORIGIN_TEST)show_notice("Busqueda automatica pendiente de validacion StallGuard4");
