@@ -554,7 +554,14 @@ void dispatch(const char* data) {
    // A single failed UART probe while already holding is not proof of
    // lost motor position. Reject the new move without disabling both axes.
    // A positive driver fault, however, still triggers the real safety stop.
-   if(!probeStall((uint8_t)axis)){
+   bool uartReady=probeStall((uint8_t)axis);
+   if(!uartReady){
+     // Retry one read-only check after a brief UART turn-around.
+     // No STEP pulses or driver-enable changes occur during this retry.
+     delay(12);
+     uartReady=probeStall((uint8_t)axis);
+   }
+   if(!uartReady){
      replyError(id,"AUTO_UART_RETRY");return;
    }
    if(d.drv_err()||d.toff()==0||d.rms_current()>HOLD_RMS_MAX_MA){
