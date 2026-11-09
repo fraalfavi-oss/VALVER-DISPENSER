@@ -245,6 +245,15 @@ static void pollMotors(){
       }else show_notice("Calibracion iniciada");
    }
    else if(op==10){
+      const uint8_t ax=pendingSaveAxis;
+      const uint8_t kind=pendingSaveKind;
+      const uint8_t fresh=(ax==1?(kind==1?2:4):(kind==1?8:16));
+      const int32_t saved=(kind==1?zRest[ax-1]:zDisp[ax-1]);
+      if(ax<1||ax>2 || !(motorFresh&fresh) || saved!=zPos[ax-1] ||
+         !(motorFlags&(ax==1?4:8))){
+        show_notice("Guardado sin verificacion de retencion/altura; repetir OK");
+        return;
+      }
       if(wizardMode==2 && wizardStep==1){
         // Save Z1 rest before opening an entirely new calibration
         // session for Z2; NEVER copy Z1 values into Z2.
@@ -265,6 +274,40 @@ static void pollMotors(){
       else show_notice("Desplazamiento autorizado");
    }
   }
+ }
+ // A coordinated dispensing action is ONE touch command, but two safe
+ // consecutive moves: first retract the other nozzle completely.
+ if(pairPhase==2 || pairPhase==4){
+   const uint8_t ax=(pairPhase==2)?pairOther:pairChosen;
+   const bool referenced=(motorFlags&(ax==1?16:32))!=0;
+   const bool holding=(motorFlags&(ax==1?4:8))!=0;
+   const int32_t target=(pairPhase==2)?zRest[ax-1]:zDisp[ax-1];
+   if(!(motorFlags&1)){
+      if(referenced && holding && zPos[ax-1]==target){
+        if(pairPhase==2){
+          pairPhase=3;pairPhaseStarted=now;
+          if(!sendMotor(13,pairChosen,2,0,true)){
+             pairPhase=0;autoRunning=false;
+             show_notice("Fallo al enviar DISPENSACION: comprobar enlace");
+          }else show_notice("Aguja contraria en reposo. Bajando seleccionada.");
+        }else{
+          pairPhase=0;autoRunning=false;
+          show_notice("Cambio completado: una dispensando, otra en reposo");
+        }
+      }else{
+        pairPhase=0;autoRunning=false;
+        show_notice("Cambio interrumpido: posicion/referencia no confirmada");
+      }
+   }else if(!(motorFlags&2)){
+     pairPhase=0;autoRunning=false;
+     sendMotor(2);
+     show_notice("Movimiento inesperado: controlador detenido");
+   }
+ }
+ if(pairPhase && (uint32_t)(now-pairPhaseStarted)>65000UL){
+   pairPhase=0;autoRunning=false;
+   sendMotor(2);
+   show_notice("Tiempo de cambio excedido: parada del controlador");
  }
  if(now-lastStatusDraw>=350){
   lastStatusDraw=now;
@@ -293,6 +336,22 @@ static void pollMotors(){
     (uint32_t)(now-startSentAt)>650){
     startUnconfirmedNotice=true;
     show_notice("Arranque pendiente de confirmar; soltar para detener");
+ }
+ // Retry a stationary height save with the SAME sequence if the previous
+ // command was lost in an I2C/NVS transition. This is idempotent only while
+ // the axis remains held at its captured position.
+ if(waitingOp==10 && startRetryCount<2 &&
+    (uint32_t)(now-startRetryAt)>1800 &&
+    pendingSaveAxis>=1 && pendingSaveAxis<=2 &&
+    !(motorFlags&1) &&
+    (motorFlags&(pendingSaveAxis==1?4:8)) &&
+    zPos[pendingSaveAxis-1]==pendingSavePosition){
+     Wire1.beginTransmission(MOTOR_I2C);
+     Wire1.write(lastCriticalPacket,sizeof(lastCriticalPacket));
+     const uint8_t rc=Wire1.endTransmission();
+     startRetryAt=now;startRetryCount++;
+     Serial.printf("[VALVER I2C] SAVE retry %u seq=%u result=%u\n",
+         (unsigned)startRetryCount,(unsigned)waitingSeq,(unsigned)rc);
  }
  // Height saves and NVS copies can be slower than motion commands.
  // A missing configuration ACK must NOT trigger DISABLE_CHANNELS:
@@ -323,7 +382,8 @@ static void pollMotors(){
     show_notice(details);
   }
  }
- if((motorFlags&1)&&autoRunning&&now-lastBeat>=90){sendMotor(6);lastBeat=now;}
+ if((motorFlags&1)&&((autoRunning||pairPhase)&& (motorFlags&2)) &&
+    now-lastBeat>=90){sendMotor(6);lastBeat=now;}
  else if(holdOwned&&(motorFlags&12)&&now-lastBeat>=150){sendMotor(7);lastBeat=now;}
  if(!(motorFlags&1)){
     if(moving && held && !startPending) {
