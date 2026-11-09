@@ -196,6 +196,22 @@ void on_action(lv_event_t* e){
 }
 static void pollMotors(){
  const uint32_t now=millis();if(now-lastPoll<70)return;lastPoll=now;
+ // Feed holding/automatic watch-dogs BEFORE a possibly delayed status
+ // request or LVGL redraw. Idle holding is based on the live I2C link,
+ // not on a stale bit in the last display frame. COM5 ignores a beat
+ // when no actual motor is held.
+ static uint32_t lastMotionBeatSent=0,lastIdleBeatSent=0;
+ const bool motionExpected=(held && (startPending||moving)) ||
+       pairPhase!=0 || waitingOp==13 || waitingOp==15 || autoRunning ||
+       (motorFlags&3)==3;
+ if(motorOnline && motionExpected &&
+    (uint32_t)(now-lastMotionBeatSent)>=80){
+     sendMotor(6);lastMotionBeatSent=now;
+ }
+ if(motorOnline && !motionExpected &&
+    (uint32_t)(now-lastIdleBeatSent)>=140){
+     sendMotor(7);lastIdleBeatSent=now;
+ }
  uint8_t rx[32]={0};const uint8_t count=Wire1.requestFrom((uint8_t)MOTOR_I2C,(uint8_t)32);
  if(count==32){for(int i=0;i<32;i++)rx[i]=Wire1.read();}
  else while(Wire1.available())Wire1.read();
@@ -348,9 +364,7 @@ static void pollMotors(){
    show_notice("I2C conectada. Esperando que arranquen los drivers.");
  // Manual movement is held only by continuous touch and watchdog beats.
  // This is independent of the lagging reply sequence on HOLD_START.
- if(held && (startPending||moving) && (uint32_t)(now-lastBeat)>=90){
-    sendMotor(6);lastBeat=now;
- }
+ // Motion heartbeat is already sent before I2C status polling.
  // The I2C slave can report the previous state while a TMC2209 is
  // starting. Do not issue a false disable because one status was delayed.
  // This HMI remains hold-to-run: releasing the finger sends HOLD_STOP,
@@ -437,25 +451,8 @@ static void pollMotors(){
     show_notice(details);
   }
  }
- // Deadman: start feeding the controller as soon as a coordinated
- // movement is requested. Never wait for a delayed active status/ACK.
- // The controller accepts motion beats only when a trial is actually active.
- // Feed idle hold *independently* while awaiting movement, because both
- // calibrated axes can still be stationary during pair phase 1 or 3.
- static uint32_t lastMotionBeat=0,lastIdleBeat=0;
- const bool expectedAuto=(pairPhase!=0 || waitingOp==13 || waitingOp==15 || autoRunning);
- // Manual pressing already feeds op=6 in its own original path above.
- // Avoid duplicate heartbeats congesting the I2C bus.
- if(expectedAuto){
-   if((uint32_t)(now-lastMotionBeat)>=75){
-     sendMotor(6);lastMotionBeat=now;
-   }
- }
- if(!(motorFlags&1) && (motorFlags&12)){
-   if((uint32_t)(now-lastIdleBeat)>=130){
-     sendMotor(7);lastIdleBeat=now;
-   }
- }
+ // The pre-poll heartbeat above also protects both calibrated axes
+ // across transient display-status delays; no duplicate packets here.
 
  if(!(motorFlags&1)){
     if(moving && held && !startPending) {
