@@ -40,7 +40,7 @@ static bool sendMotor(uint8_t op,uint8_t axis=0,uint8_t arg=0,uint16_t value=0,b
  if(Wire1.endTransmission()!=0){motorOnline=false;return false;}
  if(ack){
    waitingSeq=p[2];waitingOp=op;waitingSince=millis();
-   if(op==4){
+   if(op==4||op==10){
      memcpy(lastCriticalPacket,p,sizeof(lastCriticalPacket));
      startRetryCount=0;startRetryAt=millis();
    }
@@ -170,7 +170,7 @@ static void pollMotors(){
   const bool savingConfig=(waitingOp==8||waitingOp==10||waitingOp==11);
   const uint32_t linkGraceMs=savingConfig?3000UL:500UL;
   if((uint32_t)(now-lastLink)>linkGraceMs&&motorOnline){
-   motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
+   motorOnline=false;held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;pairPhase=0;
    startUnconfirmedNotice=false;waitingOp=0;
    if(connectionText)lv_label_set_text(connectionText,"I2C: SIN ENLACE");
    if(driverText)lv_label_set_text(driverText,"DESCONECTADO");
@@ -179,7 +179,10 @@ static void pollMotors(){
   return;
  }
  const bool wasOnline=motorOnline;
- motorOnline=true;lastLink=now;motorFlags=rx[5];
+ motorOnline=true;lastLink=now;motorFlags=rx[5];motorMarks=rx[6];motorFresh=rx[4];
+ zPos[0]=readInt32(rx+8);zPos[1]=readInt32(rx+12);
+ zRest[0]=readInt32(rx+16);zRest[1]=readInt32(rx+20);
+ zDisp[0]=readInt32(rx+24);zDisp[1]=readInt32(rx+28);
  const uint8_t currentTmcReady=(uint8_t)(motorFlags&0xC0);
  if(currentTmcReady!=previousTmcReady){
    previousTmcReady=currentTmcReady;
@@ -206,6 +209,8 @@ static void pollMotors(){
    }
    if(rx[3]==2){
    // Reject and keep the current wizard step; no unverified save proceeds.
+   if(pairPhase)pairPhase=0;
+   if(op==9)wizardSwitchingAxis=false;
    if((op==10||op==11||op==12) &&
       strncmp((const char*)(rx+16),"HOLD_MOTOR_WHIL",15)==0)
      show_notice("Eje sin retencion: mover, soltar y volver a guardar");
@@ -232,12 +237,33 @@ static void pollMotors(){
      }
     }
    else if(op==4){if(held){moving=true;holdOwned=true;}else sendMotor(5);}
+   else if(op==9){
+      if(wizardSwitchingAxis){
+        wizardSwitchingAxis=false;
+        wizardStep=2;wizard_render();
+        show_notice("Z1 guardado. Calibrar DISPENSACION Z2");
+      }else show_notice("Calibracion iniciada");
+   }
    else if(op==10){
-    if(wizardMode==2&&wizardStep==1)sendMotor(11,0,0,0,true);
-    else{wizardStep++;wizard_render();show_notice("Posicion guardada");}
-   }else if(op==11||op==12){wizardStep++;wizard_render();show_notice("Referencia registrada");}
-   else if(op==5){moving=false;show_notice("Movimiento detenido, eje retenido");}
-   else if(op==13){autoRunning=true;holdOwned=true;show_notice("Movimiento aceptado");}
+      if(wizardMode==2 && wizardStep==1){
+        // Save Z1 rest before opening an entirely new calibration
+        // session for Z2; NEVER copy Z1 values into Z2.
+        wizardSwitchingAxis=true;
+        if(!sendMotor(9,2,0,0,true)){
+          wizardSwitchingAxis=false;
+          show_notice("Z1 guardado; no se pudo iniciar Z2");
+        }else show_notice("Alturas Z1 guardadas. Preparando Z2...");
+      }else{
+        wizardStep++;wizard_render();show_notice("Posicion guardada y verificada");
+      }
+   }else if(op==5){moving=false;show_notice("Movimiento detenido, eje retenido");}
+   else if(op==13){
+      autoRunning=(motorFlags&1)!=0;
+      holdOwned=true;
+      if(pairPhase==1){pairPhase=2;pairPhaseStarted=now;}
+      else if(pairPhase==3){pairPhase=4;pairPhaseStarted=now;}
+      else show_notice("Desplazamiento autorizado");
+   }
   }
  }
  if(now-lastStatusDraw>=350){
@@ -286,7 +312,7 @@ static void pollMotors(){
      (unsigned)timedOutOp,(unsigned)timedOutSeq);
     show_notice(msg);
   }else{
-    held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;
+    held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;pairPhase=0;
     sendMotor(2);
     char details[140];
     snprintf(details,sizeof(details),
