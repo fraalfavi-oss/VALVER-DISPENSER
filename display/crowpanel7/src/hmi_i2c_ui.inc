@@ -305,7 +305,7 @@ static void pollMotors(){
      autoRunning=confirmedRunning;
      pairPhase=(pairPhase==1)?2:4;
      pairPhaseStarted=now;
-     Serial.printf("[VALVER I2C] paired axis=%u verified by telemetry (running=%u)\\n",
+     Serial.printf("[VALVER I2C] paired axis=%u verified by telemetry (running=%u)\n",
        (unsigned)expectedAxis,(unsigned)confirmedRunning);
    }
  }
