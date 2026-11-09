@@ -40,7 +40,9 @@ void hmiRx(int /*count*/) {
   uint8_t next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
   // When stationary, do not let idle heartbeat chatter evict a confirmed
   // height-save or calibration request. Active motion never uses this path.
-  if(next==hmiTail && (data[3]&0x80) && !trial.active){
+  if(next==hmiTail && (data[3]&0x80) && !trial.active &&
+     (hmiQueue[hmiTail].p[3]&0x7F)==7){
+    // Evict ONLY a replaceable idle heartbeat, never STOP or a save.
     hmiTail=(uint8_t)((hmiTail+1)%HMI_QUEUE_SIZE);
     next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
   }
