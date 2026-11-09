@@ -76,7 +76,7 @@ void motorPress(lv_event_t *e){
  if(a==Z2_UP||a==Z2_DOWN){ax=2;up=a==Z2_UP;}
  if(a==WIZ_UP||a==WIZ_DOWN){
   if(!wizardRunning)return;
-  ax=(wizardMode==1||(wizardMode==2&&wizardStep==2))?2:1;up=a==WIZ_UP;
+  ax=(wizardMode==1||(wizardMode==2&&wizardStep>=2))?2:1;up=a==WIZ_UP;
  }
  if(!ax)return;
  if(!motorOnline){show_notice("I2C SIN ENLACE: movimiento bloqueado");return;}
