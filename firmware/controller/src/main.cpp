@@ -225,6 +225,11 @@ struct Trial {bool active=false,high=false,up=false,automatic=false;int32_t targ
 // positions between power cycles or use them for autonomous movements.
 struct ZHeights {int32_t position=0,rest=0,dispense=0;bool restSet=false,dispenseSet=false,referenced=false,restFresh=false,dispenseFresh=false;};
 ZHeights heights[3];
+struct PairedSequence {
+ bool active=false,complete=false,failed=false;
+ uint8_t chosen=0,opposite=0,stage=0,retries=0;
+ unsigned long id=0;uint32_t lastTry=0;
+} paired;
 Preferences savedPrefs;
 bool flashReady=false;
 void replyZHeights(unsigned long id){
@@ -303,6 +308,7 @@ bool readSignedZValue(const char* json,long &value){
  return value>=-2000000L&&value<=2000000L;
 }
 void abortTrial(){
+ if(paired.active){paired.active=false;paired.failed=true;paired.complete=false;}
  digitalWrite(Z1_STEP,LOW);digitalWrite(Z2_STEP,LOW);
  disableDrivers();
  holdingAxis[1]=false;holdingAxis[2]=false;
@@ -339,7 +345,8 @@ uint32_t tmcLastRestartAt[3]={0,0,0};
 uint8_t tmcFailures[3]={0,0,0};
 uint8_t tmcGoodReads[3]={0,0,0};
 void serviceTmcAutoLink(){
-  if(COLD_INSPECTION_ONLY || trial.active || holdingAxis[1] || holdingAxis[2])return;
+  if(COLD_INSPECTION_ONLY || trial.active || paired.active ||
+     holdingAxis[1] || holdingAxis[2])return;
   const uint32_t now=millis();
   if((uint32_t)(now-tmcLastProbeAt)<TMC_AUTO_PROBE_MS)return;
   tmcLastProbeAt=now;
@@ -449,7 +456,7 @@ bool coldCommandAllowed(const char* cmd){
    "PING","GET_INFO","GET_STATUS","GET_READINESS","GET_SENSORS",
    "GET_COLD_CHECK","COLD_SELF_TEST","SELECT_Z1","SELECT_Z2",
    "DISABLE_CHANNELS","STOP_TEST","JOG_GPIO_STOP","JOG_STOP","JOG_MOTOR_STOP",
-   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT","REFERENCE_Z_REST","GO_TO_Z_HEIGHT","BEGIN_Z_CALIBRATION","COPY_Z1_HEIGHTS_TO_Z2"
+   "GET_DRIVER_TEST","PREPARE_TEST","HOLD_START","HOLD_STOP","HOLD_HEARTBEAT","HOLD_IDLE_HEARTBEAT","SET_HOLD_SPEED","GET_Z_HEIGHTS","SAVE_Z_HEIGHT","CLEAR_Z_HEIGHTS","SET_SHARED_HEIGHT","REFERENCE_Z_REST","GO_TO_Z_HEIGHT","GO_TO_PAIR","BEGIN_Z_CALIBRATION","COPY_Z1_HEIGHTS_TO_Z2"
  };
  for(const char* name:allowed)if(strcmp(cmd,name)==0)return true;
  return false;
@@ -517,6 +524,37 @@ void dispatch(const char* data) {
    controllerReply(R"json({"id":%lu,"status":"OK","axis":%lu,"reference_set":true,"position":%ld})json" "\n",
       id,axis,(long)h.position);
    replyZHeights(id);
+ }else if(strcmp(cmd,"GO_TO_PAIR")==0){
+   unsigned long axis=0,confirm=0;
+   if(!readUIntField(data,"axis",axis)||!readUIntField(data,"confirm",confirm)||
+      axis<1||axis>2||confirm!=1){replyError(id,"INVALID_PAIR_REQUEST");return;}
+   if(trial.active||paired.active){replyError(id,"BUSY_MOTOR_ACTIVE");return;}
+   const uint8_t selected=(uint8_t)axis,other=selected==1?2:1;
+   if(!heights[1].referenced||!heights[2].referenced||
+      !holdingAxis[1]||!holdingAxis[2]||
+      !heights[selected].dispenseSet||!heights[other].restSet){
+      replyError(id,"PAIR_REFERENCE_OR_HOLD_MISSING");return;
+   }
+   paired.active=true;paired.complete=false;paired.failed=false;
+   paired.stage=1;paired.chosen=selected;paired.opposite=other;
+   paired.id=id;paired.retries=0;paired.lastTry=0;
+   char first[128];
+   snprintf(first,sizeof(first),
+      "{\"id\":%lu,\"cmd\":\"GO_TO_Z_HEIGHT\",\"axis\":%u,\"kind\":1,\"confirm\":1}",
+      id,other);
+   const bool previousMode=hmiDispatching;
+   hmiDispatching=true;hmiDispatchRejected=false;hmiDispatchError[0]=0;
+   dispatch(first);
+   const bool rejected=hmiDispatchRejected;
+   char reason[17];strncpy(reason,hmiDispatchError,16);reason[16]=0;
+   hmiDispatching=previousMode;
+   hmiDispatchRejected=false;hmiDispatchError[0]=0;
+   if(rejected){
+     paired.active=false;paired.failed=true;
+     replyError(id,reason[0]?reason:"PAIR_RETRACT_FAILED");return;
+   }
+   controllerReply(R"json({"id":%lu,"status":"ACCEPTED","pair":true,"dispense_axis":%u,"retract_axis":%u})json" "\n",
+      id,selected,other);
  }else if(strcmp(cmd,"GO_TO_Z_HEIGHT")==0){
    if(trial.active){replyError(id,"BUSY_MOTOR_ACTIVE");return;}
    unsigned long axis=0,kind=0,confirm=0;
@@ -799,6 +837,50 @@ void dispatch(const char* data) {
    replyError(id,"UNKNOWN_COMMAND");
  }
 }
+void servicePairedSequence(){
+ if(!paired.active)return;
+ const uint8_t expected=paired.stage==1?paired.opposite:paired.chosen;
+ if(trial.active){
+   if(!trial.automatic||trial.axis!=expected){
+     paired.active=false;paired.failed=true;paired.complete=false;
+   }
+   return;
+ }
+ if(!heights[1].referenced||!heights[2].referenced||
+    !holdingAxis[1]||!holdingAxis[2]){
+   paired.active=false;paired.failed=true;paired.complete=false;return;
+ }
+ if(paired.stage==1){
+   if(heights[paired.opposite].position!=heights[paired.opposite].rest){
+     paired.active=false;paired.failed=true;paired.complete=false;return;
+   }
+   if(paired.retries && (uint32_t)(millis()-paired.lastTry)<180UL)return;
+   paired.lastTry=millis();
+   char second[128];
+   snprintf(second,sizeof(second),
+      "{\"id\":%lu,\"cmd\":\"GO_TO_Z_HEIGHT\",\"axis\":%u,\"kind\":2,\"confirm\":1}",
+      paired.id,paired.chosen);
+   const bool previousMode=hmiDispatching;
+   const bool previousRejected=hmiDispatchRejected;
+   char previousReason[17];memcpy(previousReason,hmiDispatchError,17);
+   hmiDispatching=true;hmiDispatchRejected=false;hmiDispatchError[0]=0;
+   dispatch(second);
+   const bool rejected=hmiDispatchRejected;
+   const bool retryUart=rejected &&
+      strncmp(hmiDispatchError,"AUTO_UART_RETRY",15)==0;
+   hmiDispatching=previousMode;hmiDispatchRejected=previousRejected;
+   memcpy(hmiDispatchError,previousReason,17);
+   if(rejected){
+     if(retryUart && paired.retries<3){paired.retries++;return;}
+     paired.active=false;paired.failed=true;paired.complete=false;return;
+   }
+   paired.stage=2;
+ }else if(paired.stage==2){
+   const bool reached=heights[paired.chosen].position==
+           heights[paired.chosen].dispense && holdingAxis[paired.chosen];
+   paired.complete=reached;paired.failed=!reached;paired.active=false;
+ }
+}
 void serviceStall(){
  if(!jog.active || !stall[jog.axis].uart || !stall[jog.axis].monitoring)return; // live telemetry independent of force-stop
  const uint32_t now=millis();
@@ -896,6 +978,7 @@ void loop(){
    }
  }
  serviceTrial();
+ servicePairedSequence();
  serviceHold();
  serviceRgb();
  // Legacy motion service disabled.
