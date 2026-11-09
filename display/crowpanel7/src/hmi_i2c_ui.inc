@@ -76,7 +76,7 @@ void motorPress(lv_event_t *e){
  if(a==Z2_UP||a==Z2_DOWN){ax=2;up=a==Z2_UP;}
  if(a==WIZ_UP||a==WIZ_DOWN){
   if(!wizardRunning)return;
-  ax=(wizardMode==1||(wizardMode==2&&wizardStep>=2))?2:1;up=a==WIZ_UP;
+  ax=(uint8_t)(wizardMode+1);up=a==WIZ_UP;
  }
  if(!ax)return;
  if(!motorOnline){show_notice("I2C SIN ENLACE: movimiento bloqueado");return;}
@@ -91,6 +91,36 @@ void on_speed(lv_event_t* e){
  lv_label_set_text_fmt(speedLabel,"Velocidad: %d micropasos/s",n);
  if(lv_event_get_code(e)==LV_EVENT_RELEASED){
   if(!sendMotor(8,0,0,(uint16_t)n,true))show_notice("Velocidad no aplicada");
+ }
+}
+// Each needle has exactly two calibration steps. The controller persists
+// each height to NVS BEFORE acknowledging SAVE_Z_HEIGHT.
+static void startCalibration(uint8_t mode){
+ if(!motorOnline || waitingOp || held || pairPhase || (motorFlags&1)){
+   show_notice("Termina el movimiento antes de calibrar");
+   return;
+ }
+ wizardMode=mode;wizardStep=0;wizardRunning=true;
+ wizardSwitchingAxis=false;pendingSaveAxis=0;pairPhase=0;
+ wizard_render();
+ if(!sendMotor(9,(uint8_t)(mode+1),0,0,true)){
+   wizardRunning=false;
+   wizard_render();
+   show_notice("Controlador no disponible");
+ }
+}
+static void heightSaved(){
+ if(pendingSaveAxis==0)return;
+ const uint8_t axis=pendingSaveAxis,kind=pendingSaveKind;
+ pendingSaveAxis=0;pendingSaveKind=0;
+ if(wizardRunning && axis==wizardMode+1 &&
+    kind==(wizardStep==0?2:1) && wizardStep<2){
+   wizardStep++;
+   wizard_render();
+   if(wizardStep>=2)
+      show_notice(axis==1?"Z1 guardado. Pulsa CALIBRAR Z2.":"Z2 guardado. Ir a CONTROL Z.");
+   else
+      show_notice(axis==1?"Z1 dispensacion guardada. Ahora REPOSO.":"Z2 dispensacion guardada. Ahora REPOSO.");
  }
 }
 void on_action(lv_event_t* e){
@@ -132,18 +162,21 @@ void on_action(lv_event_t* e){
   else show_notice("Desplazamiento a reposo solicitado");
   return;
  }
- if(a>=PICK_Z1&&a<=PICK_BOTH){wizardMode=(uint8_t)(a-PICK_Z1);wizard_render();return;}
- if(a==BEGIN||a==WIZ_RESTART){
-  if(!motorOnline||waitingOp){show_notice("Sin controlador disponible");return;}
-  wizardRunning=true;wizardStep=0;wizardSwitchingAxis=false;pairPhase=0;
-  if(!sendMotor(9,wizardMode==1?2:1,0,0,true))wizardRunning=false;
-  wizard_render();return;
+ if(a==PICK_Z1||a==PICK_Z2||a==WIZ_NEXT||a==WIZ_RESTART||a==BEGIN){
+    const uint8_t mode=(a==PICK_Z2||a==WIZ_NEXT)?1:
+          (a==WIZ_RESTART?wizardMode:0);
+    startCalibration(mode);
+    return;
  }
- if(a==WIZ_CANCEL){motorRelease();wizardRunning=false;wizardStep=0;wizardSwitchingAxis=false;wizard_render();return;}
+ if(a==WIZ_CANCEL){
+    motorRelease();wizardRunning=false;wizardStep=0;
+    pendingSaveAxis=0;wizard_render();return;
+ }
  if(a==WIZ_OK){
   if(!wizardRunning||waitingOp||held||(motorFlags&1)){show_notice("Suelta el motor antes de guardar");return;}
-  const uint8_t ax=(wizardMode==1||(wizardMode==2&&wizardStep>=2))?2:1;
-  const uint8_t kind=(wizardStep%2==0)?2:1;
+  if(wizardStep>=2)return;
+  const uint8_t ax=(uint8_t)(wizardMode+1);
+  const uint8_t kind=(wizardStep==0)?2:1;
   if(!(motorFlags&(ax==1?4:8))){
     show_notice("Eje sin retencion: mover, soltar y guardar");return;
   }
@@ -210,7 +243,7 @@ static void pollMotors(){
    if(rx[3]==2){
    // Reject and keep the current wizard step; no unverified save proceeds.
    if(pairPhase)pairPhase=0;
-   if(op==9)wizardSwitchingAxis=false;
+   if(op==10)pendingSaveAxis=0;
    if((op==10||op==11||op==12) &&
       strncmp((const char*)(rx+16),"HOLD_MOTOR_WHIL",15)==0)
      show_notice("Eje sin retencion: mover, soltar y volver a guardar");
@@ -238,33 +271,10 @@ static void pollMotors(){
     }
    else if(op==4){if(held){moving=true;holdOwned=true;}else sendMotor(5);}
    else if(op==9){
-      if(wizardSwitchingAxis){
-        wizardSwitchingAxis=false;
-        wizardStep=2;wizard_render();
-        show_notice("Z1 guardado. Calibrar DISPENSACION Z2");
-      }else show_notice("Calibracion iniciada");
+     show_notice(wizardMode==0?"Calibrando Z1: dispensacion.":"Calibrando Z2: dispensacion.");
    }
    else if(op==10){
-      const uint8_t ax=pendingSaveAxis;
-      const uint8_t kind=pendingSaveKind;
-      const uint8_t fresh=(ax==1?(kind==1?2:4):(kind==1?8:16));
-      const int32_t saved=(kind==1?zRest[ax-1]:zDisp[ax-1]);
-      if(ax<1||ax>2 || !(motorFresh&fresh) || saved!=zPos[ax-1] ||
-         !(motorFlags&(ax==1?4:8))){
-        show_notice("Guardado sin verificacion de retencion/altura; repetir OK");
-        return;
-      }
-      if(wizardMode==2 && wizardStep==1){
-        // Save Z1 rest before opening an entirely new calibration
-        // session for Z2; NEVER copy Z1 values into Z2.
-        wizardSwitchingAxis=true;
-        if(!sendMotor(9,2,0,0,true)){
-          wizardSwitchingAxis=false;
-          show_notice("Z1 guardado; no se pudo iniciar Z2");
-        }else show_notice("Alturas Z1 guardadas. Preparando Z2...");
-      }else{
-        wizardStep++;wizard_render();show_notice("Posicion guardada y verificada");
-      }
+     heightSaved();
    }else if(op==5){moving=false;show_notice("Movimiento detenido, eje retenido");}
    else if(op==13){
       autoRunning=(motorFlags&1)!=0;
@@ -320,6 +330,16 @@ static void pollMotors(){
       "Z%d P:%ld  R:%ld\nD:%ld  | %s",i+1,
       (long)zPos[i],(long)zRest[i],(long)zDisp[i],
       (motorFlags&(i?32:16))?"REFERENCIADO":"SIN ORIGEN");
+   if(restButtonText[i]){
+      if(motorMarks&(i?4:1))
+        lv_label_set_text_fmt(restButtonText[i],"REPOSO\n%ld",(long)zRest[i]);
+      else lv_label_set_text(restButtonText[i],"REPOSO\n--");
+   }
+   if(dispButtonText[i]){
+      if(motorMarks&(i?8:2))
+        lv_label_set_text_fmt(dispButtonText[i],"DISPENSACION\n%ld",(long)zDisp[i]);
+      else lv_label_set_text(dispButtonText[i],"DISPENSACION\n--");
+   }
   }
  }
  if(!wasOnline && (motorFlags&0xC0)!=0xC0)
