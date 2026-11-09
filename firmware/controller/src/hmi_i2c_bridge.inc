@@ -17,7 +17,7 @@ uint8_t hmiAckSeq=0,hmiAckResult=0,hmiError=0;
 char hmiReason[17]={0};
 uint8_t hmiLastProcessedStartSeq=0;
 bool hmiHasProcessedStart=false;
-uint8_t hmiLastSavedSeq=0;
+uint8_t hmiLastSavedSeq=0,hmiLastSaveAxis=0,hmiLastSaveKind=0;
 bool hmiHasSavedSequence=false;
 uint32_t hmiLastSavedAt=0;
 uint32_t hmiLastProcessedStartMs=0;
@@ -119,7 +119,8 @@ void hmiExecute(const HmiWireCommand& request) {
   // must not overwrite a height after the operator has moved the nozzle.
   if(wantsAck && op==10 && hmiHasSavedSequence &&
      hmiLastSavedSeq==p[2] &&
-     (uint32_t)(millis()-hmiLastSavedAt)<9000UL){
+     hmiLastSaveAxis==axis && hmiLastSaveKind==arg &&
+     (uint32_t)(millis()-hmiLastSavedAt)<15000UL){
      return; // Keep the existing latest ACK; do not roll it backwards.
   }
   char json[192]={0};
@@ -161,7 +162,7 @@ void hmiExecute(const HmiWireCommand& request) {
   }
   if(wantsAck && op==10){
     hmiHasSavedSequence=true;
-    hmiLastSavedSeq=p[2];
+    hmiLastSavedSeq=p[2];hmiLastSaveAxis=axis;hmiLastSaveKind=arg;
     hmiLastSavedAt=millis();
   }
   if(wantsAck && op==4) {
