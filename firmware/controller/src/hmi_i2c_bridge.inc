@@ -37,7 +37,13 @@ void hmiRx(int /*count*/) {
   const uint8_t operation=(uint8_t)(data[3]&0x7F);
   const bool isStop=(operation==2 || operation==5);
   if(isStop)hmiTail=hmiHead;
-  const uint8_t next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
+  uint8_t next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
+  // When stationary, do not let idle heartbeat chatter evict a confirmed
+  // height-save or calibration request. Active motion never uses this path.
+  if(next==hmiTail && (data[3]&0x80) && !trial.active){
+    hmiTail=(uint8_t)((hmiTail+1)%HMI_QUEUE_SIZE);
+    next=(uint8_t)((hmiHead+1)%HMI_QUEUE_SIZE);
+  }
   if(next!=hmiTail) {
     memcpy(hmiQueue[hmiHead].p,data,sizeof(data));
     hmiHead=next;
