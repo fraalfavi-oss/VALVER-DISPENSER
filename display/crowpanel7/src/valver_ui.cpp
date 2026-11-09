@@ -109,25 +109,19 @@ void wizard_render(){
     lv_obj_set_style_bg_color(wizardChoice[i],lv_color_hex(wizardMode==i?GREEN:BLUE),0);
   return;
  }
- if(wizardStep >= (wizardMode==2?3:2)){
+ if(wizardStep >= (wizardMode==2?4:2)){
   lv_obj_remove_flag(wizardDone,LV_OBJ_FLAG_HIDDEN);
   return;
  }
  lv_obj_remove_flag(wizardWork,LV_OBJ_FLAG_HIDDEN);
- const bool z2=(wizardMode==1)||(wizardMode==2&&wizardStep==2);
- const bool confirmZ2=(wizardMode==2&&wizardStep==2);
+ const bool z2=(wizardMode==1)||(wizardMode==2&&wizardStep>=2);
  const char* axis=z2?"Z2":"Z1";
- const char* place=confirmZ2?"REPOSO":(wizardStep==0?"DISPENSACION":"REPOSO");
+ const char* place=(wizardStep%2==0)?"DISPENSACION":"REPOSO";
  char title[65],prog[40],help[160];
  snprintf(title,sizeof(title),"%s - %s",axis,place);
- snprintf(prog,sizeof(prog),"PASO %u DE %u",wizardStep+1,(wizardMode==2?3:2));
- if(confirmZ2){
-  snprintf(help,sizeof(help),
-           "Z2 usa las alturas de Z1.\nSituar Z2 en reposo y pulsar OK.");
- }else{
-  snprintf(help,sizeof(help),
-           "Situar %s en %s con SUBIR / BAJAR.\nSoltar el boton y pulsar OK.",axis,place);
- }
+ snprintf(prog,sizeof(prog),"PASO %u DE %u",wizardStep+1,(wizardMode==2?4:2));
+ snprintf(help,sizeof(help),
+          "Situar %s en %s con SUBIR / BAJAR.\nSoltar y pulsar OK para guardar.",axis,place);
  lv_label_set_text(wizardStepLabel,title);
  lv_label_set_text(wizardProgress,prog);
  lv_label_set_text(wizardHelp,help);
@@ -189,7 +183,7 @@ void make_calibration(){
  wizardChoice[1]=btn(wizardPick,229,94,197,60,"Z2",BLUE,PICK_Z2);
  wizardChoice[2]=btn(wizardPick,442,94,197,60,"AMBOS",BLUE,PICK_BOTH);
  btn(wizardPick,16,176,623,59,"INICIAR SISTEMA",GREEN,BEGIN);
- label(wizardPick,16,254,621,"AMBOS: copia los valores de Z1 a Z2.",SUB);
+ label(wizardPick,16,254,621,"AMBOS: 4 posiciones independientes (Z1 y Z2).",SUB);
  label(wizardPick,16,276,621,"El controlador confirmara cada altura guardada.",SUB);
  wizardWork=panel(p,5,4,655,330,PANEL);
  wizardStepLabel=label(wizardWork,16,13,450,"Z1 - DISPENSACION",CYAN,true);
@@ -202,7 +196,7 @@ void make_calibration(){
  wizardDone=panel(p,5,4,655,330,PANEL);
  label(wizardDone,20,30,618,"CONFIGURACION COMPLETADA",CYAN,true);
  label(wizardDone,20,105,614,"Calibracion registrada en el controlador.",TEXT);
- label(wizardDone,20,139,614,"Verificar referencia de los ejes antes de mover.",SUB);
+ label(wizardDone,20,139,614,"Control cruzado: primero retirar, luego dispensar.",SUB);
  btn(wizardDone,20,217,294,61,"REPETIR",BLUE,WIZ_RESTART);
  btn(wizardDone,331,217,304,61,"CONTROL Z",GREEN,WIZ_HOME);
  wizard_render();
