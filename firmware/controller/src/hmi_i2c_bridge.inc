@@ -93,7 +93,8 @@ void hmiRefresh() {
   // calibration markers so HMI can safely reconcile delayed NVS replies.
   output[4]=(hmiError&1)|(heights[1].restFresh?2:0)|
        (heights[1].dispenseFresh?4:0)|(heights[2].restFresh?8:0)|
-       (heights[2].dispenseFresh?16:0);
+       (heights[2].dispenseFresh?16:0)|
+       (paired.active?32:0)|(paired.complete?64:0)|(paired.failed?128:0);
   output[5]=(trial.active?1:0)|(trial.automatic?2:0)|
       (holdingAxis[1]?4:0)|(holdingAxis[2]?8:0)|
       (heights[1].referenced?16:0)|(heights[2].referenced?32:0)|
@@ -157,6 +158,7 @@ void hmiExecute(const HmiWireCommand& request) {
     case 12:snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"REFERENCE_Z_REST\",\"axis\":%u,\"confirm\":1}",id,axis);break;
     case 13:snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"GO_TO_Z_HEIGHT\",\"axis\":%u,\"kind\":%u,\"confirm\":1}",id,axis,arg);break;
     case 14:snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"GET_DRIVER_TEST\"}",id);break;
+    case 15:snprintf(json,sizeof(json),"{\"id\":%lu,\"cmd\":\"GO_TO_PAIR\",\"axis\":%u,\"confirm\":1}",id,axis);break;
     default:
       if(wantsAck) {
         hmiAckSeq=p[2];hmiAckResult=2;hmiError=1;
