@@ -246,7 +246,9 @@ uint16_t holdTargetSps=1600; // Default is useful travel speed; HMI slider can s
 constexpr uint32_t HOLD_MAX_MS=10000,HOLD_HEARTBEAT_TIMEOUT_MS=350;
 constexpr uint32_t AUTO_MAX_DISTANCE_STEPS=32000;
 constexpr uint32_t AUTO_MAX_MS=60000; // safety watchdog, independent of manual speed
-constexpr uint32_t HOLD_IDLE_TIMEOUT_MS=1200;
+// Allow brief display refresh/I2C scheduling gaps while an axis is
+// stationary. The active-motion 350ms watchdog is unchanged.
+constexpr uint32_t HOLD_IDLE_TIMEOUT_MS=2500;
 bool holdingAxis[3]={false,false,false};
 uint32_t holdIdleHeartbeatMs=0;
 struct SavedZSettings{
