@@ -17,6 +17,7 @@ lv_obj_t *notice=nullptr,*counterLabel=nullptr,*speedLabel=nullptr;
 lv_obj_t *touchTop=nullptr,*touchDiag=nullptr,*touchCoords=nullptr;
 lv_obj_t *wizardPick=nullptr,*wizardWork=nullptr,*wizardDone=nullptr;
 lv_obj_t *wizardDoneTitle=nullptr,*wizardDoneInfo=nullptr;
+lv_obj_t *restButtonText[2]={nullptr,nullptr},*dispButtonText[2]={nullptr,nullptr};
 lv_obj_t *wizardNextButton=nullptr;
 lv_obj_t *wizardChoice[3]={nullptr,nullptr,nullptr};
 lv_obj_t *wizardStepLabel=nullptr,*wizardHelp=nullptr,*wizardProgress=nullptr;
@@ -168,8 +169,10 @@ void make_home(){
   axisText[i]=label(card,12,41,287,"TMC2209: verificando",SUB);
   btn(card,12,72,146,48,"SUBIR",BLUE,i==0?Z1_UP:Z2_UP);
   btn(card,168,72,145,48,"BAJAR",BLUE,i==0?Z1_DOWN:Z2_DOWN);
-  btn(card,12,132,146,48,"IR A REPOSO",GREEN,i==0?Z1_REST:Z2_REST);
-  btn(card,168,132,145,48,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
+  lv_obj_t* restButton=btn(card,12,132,146,48,"REPOSO",GREEN,i==0?Z1_REST:Z2_REST);
+  lv_obj_t* dispButton=btn(card,168,132,145,48,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
+  restButtonText[i]=lv_obj_get_child(restButton,0);
+  dispButtonText[i]=lv_obj_get_child(dispButton,0);
   positionText[i]=label(card,12,197,300,"Posicion: sin referencia",SUB);
  }
  lv_obj_t* speed=panel(p,5,244,656,84,PANEL);
