@@ -212,13 +212,6 @@ void make_calibration(){
  btn(wizardDone,331,217,304,61,"CONTROL Z",GREEN,WIZ_HOME);
  wizard_render();
 }
- BAJAR.\n"
-          "Soltar y pulsar OK para guardar.",axis,place);
- lv_label_set_text(wizardStepLabel,title);
- lv_label_set_text(wizardProgress,prog);
- lv_label_set_text(wizardHelp,help);
-}
-
 void make_origin(){
  lv_obj_t* p=pages[2];
  lv_obj_t* a=panel(p,5,4,655,330,PANEL);
