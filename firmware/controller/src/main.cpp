@@ -367,6 +367,10 @@ void serviceTmcAutoLink(){
 }
 void serviceHold(){
  if(!holdingAxis[1]&&!holdingAxis[2])return;
+ // During a paired change the opposite motor is holding its position while
+ // the selected motor travels. Active travel already has a 350ms heartbeat
+ // watchdog: preserve the stationary axis until that travel ends.
+ if(trial.active){holdIdleHeartbeatMs=millis();return;}
  if((uint32_t)(millis()-holdIdleHeartbeatMs)>HOLD_IDLE_TIMEOUT_MS){
    const bool a=holdingAxis[1],b=holdingAxis[2];
    abortTrial();
