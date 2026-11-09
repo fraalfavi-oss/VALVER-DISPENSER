@@ -218,8 +218,13 @@ static void pollMotors(){
  const bool wasOnline=motorOnline;
  motorOnline=true;lastLink=now;motorFlags=rx[5];motorMarks=rx[6];motorFresh=rx[4];
  zPos[0]=readInt32(rx+8);zPos[1]=readInt32(rx+12);
- zRest[0]=readInt32(rx+16);zRest[1]=readInt32(rx+20);
- zDisp[0]=readInt32(rx+24);zDisp[1]=readInt32(rx+28);
+ // On a rejected command, response bytes 16..31 contain ERROR TEXT,
+ // not heights. Keep the last verified stored targets instead of reading
+ // error letters as position coordinates.
+ if(rx[3]!=2){
+   zRest[0]=readInt32(rx+16);zRest[1]=readInt32(rx+20);
+   zDisp[0]=readInt32(rx+24);zDisp[1]=readInt32(rx+28);
+ }
  const uint8_t currentTmcReady=(uint8_t)(motorFlags&0xC0);
  if(currentTmcReady!=previousTmcReady){
    previousTmcReady=currentTmcReady;
@@ -346,11 +351,14 @@ static void pollMotors(){
           pairPhase=0;autoRunning=false;
           show_notice("Cambio completado: una dispensando, otra en reposo");
         }
-      }else{
+      }else if((uint32_t)(now-pairPhaseStarted)>450UL){
+        // Do not advance to the next needle on an unconfirmed position.
+        // Also do not reset the other axis merely because a stale frame
+        // arrived immediately after the START acknowledgement.
         pairPhase=0;autoRunning=false;
-        show_notice("Cambio interrumpido: posicion/referencia no confirmada");
+        show_notice("Cambio no completado: comprobar posicion en COM5");
       }
-   }else if(!(motorFlags&2)){
+   }else if(!(motorFlags&2) && (uint32_t)(now-pairPhaseStarted)>450UL){
      pairPhase=0;autoRunning=false;
      sendMotor(2);
      show_notice("Movimiento inesperado: controlador detenido");
