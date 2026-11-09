@@ -459,15 +459,25 @@ static void pollMotors(){
     show_notice(details);
   }
  }
- // Feed the motor-controller deadman using ACTUAL telemetry, not the
- // screen's transient 'holdOwned' flag. This remains valid when navigating
- // CALIBRAR -> CONTROL Z, after each save, and when calibrating the other
- // axis. Never invent a reference: only COM5 can report it.
- if((motorFlags&1) && (held||startPending||moving||autoRunning||pairPhase)){
-   if((uint32_t)(now-lastBeat)>=90){sendMotor(6);lastBeat=now;}
- }else if(!(motorFlags&1) && (motorFlags&12)){
-   if((uint32_t)(now-lastBeat)>=150){sendMotor(7);lastBeat=now;}
+ // Deadman: start feeding the controller as soon as a coordinated
+ // movement is requested. Never wait for a delayed active status/ACK.
+ // The controller accepts motion beats only when a trial is actually active.
+ // Feed idle hold *independently* while awaiting movement, because both
+ // calibrated axes can still be stationary during pair phase 1 or 3.
+ static uint32_t lastMotionBeat=0,lastIdleBeat=0;
+ const bool expectedAuto=(pairPhase!=0 || waitingOp==13 || autoRunning);
+ const bool expectedManual=held && (startPending || moving);
+ if(expectedAuto || expectedManual){
+   if((uint32_t)(now-lastMotionBeat)>=75){
+     sendMotor(6);lastMotionBeat=now;
+   }
  }
+ if(!(motorFlags&1) && (motorFlags&12)){
+   if((uint32_t)(now-lastIdleBeat)>=130){
+     sendMotor(7);lastIdleBeat=now;
+   }
+ }
+
  if(!(motorFlags&1)){
     if(moving && held && !startPending) {
       held=false;holdOwned=false;
