@@ -16,6 +16,8 @@ lv_obj_t *navBtn[4]={nullptr,nullptr,nullptr,nullptr};
 lv_obj_t *notice=nullptr,*counterLabel=nullptr,*speedLabel=nullptr;
 lv_obj_t *touchTop=nullptr,*touchDiag=nullptr,*touchCoords=nullptr;
 lv_obj_t *wizardPick=nullptr,*wizardWork=nullptr,*wizardDone=nullptr;
+lv_obj_t *wizardDoneTitle=nullptr,*wizardDoneInfo=nullptr;
+lv_obj_t *wizardNextButton=nullptr;
 lv_obj_t *wizardChoice[3]={nullptr,nullptr,nullptr};
 lv_obj_t *wizardStepLabel=nullptr,*wizardHelp=nullptr,*wizardProgress=nullptr;
 uint8_t currentPage=0, wizardMode=0, wizardStep=0;
@@ -28,7 +30,7 @@ enum Action : intptr_t {
  Z1_UP=20,Z1_DOWN=21,Z1_REST=22,Z1_DISP=23,
  Z2_UP=24,Z2_DOWN=25,Z2_REST=26,Z2_DISP=27,
  PICK_Z1=40,PICK_Z2=41,PICK_BOTH=42,BEGIN=43,
- WIZ_UP=44,WIZ_DOWN=45,WIZ_OK=46,WIZ_CANCEL=47,WIZ_RESTART=48,WIZ_HOME=49,
+ WIZ_UP=44,WIZ_DOWN=45,WIZ_OK=46,WIZ_CANCEL=47,WIZ_RESTART=48,WIZ_HOME=49,WIZ_NEXT=50,
  ORIGIN_TEST=60
 };
 
@@ -105,27 +107,115 @@ void wizard_render(){
  lv_obj_add_flag(wizardDone,LV_OBJ_FLAG_HIDDEN);
  if(!wizardRunning){
   lv_obj_remove_flag(wizardPick,LV_OBJ_FLAG_HIDDEN);
-  for(uint8_t i=0;i<3;i++)
-    lv_obj_set_style_bg_color(wizardChoice[i],lv_color_hex(wizardMode==i?GREEN:BLUE),0);
   return;
  }
- if(wizardStep >= (wizardMode==2?4:2)){
+ if(wizardStep>=2){
   lv_obj_remove_flag(wizardDone,LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(wizardDoneTitle,wizardMode==0?"Z1 CALIBRADO":"Z2 CALIBRADO");
+  lv_label_set_text(wizardDoneInfo,
+    "Dispensacion y reposo guardados en el controlador.\n"
+    "Disponibles en los botones de CONTROL Z.");
+  lv_obj_t* nextLabel=lv_obj_get_child(wizardNextButton,0);
+  if(nextLabel)lv_label_set_text(nextLabel,
+    wizardMode==0?"CALIBRAR Z2":"RECALIBRAR Z2");
   return;
  }
  lv_obj_remove_flag(wizardWork,LV_OBJ_FLAG_HIDDEN);
- const bool z2=(wizardMode==1)||(wizardMode==2&&wizardStep>=2);
- const char* axis=z2?"Z2":"Z1";
- const char* place=(wizardStep%2==0)?"DISPENSACION":"REPOSO";
+ const char* axis=wizardMode==1?"Z2":"Z1";
+ const char* place=wizardStep==0?"DISPENSACION":"REPOSO";
  char title[65],prog[40],help[160];
  snprintf(title,sizeof(title),"%s - %s",axis,place);
- snprintf(prog,sizeof(prog),"PASO %u DE %u",wizardStep+1,(wizardMode==2?4:2));
+ snprintf(prog,sizeof(prog),"PASO %u DE 2",(unsigned)(wizardStep+1));
  snprintf(help,sizeof(help),
-          "Situar %s en %s con SUBIR / BAJAR.\nSoltar y pulsar OK para guardar.",axis,place);
+          "Situar %s en %s con SUBIR / BAJAR.\n"
+          "Soltar y pulsar OK para guardar.",axis,place);
  lv_label_set_text(wizardStepLabel,title);
  lv_label_set_text(wizardProgress,prog);
  lv_label_set_text(wizardHelp,help);
 }
+
+#include "hmi_i2c_ui.inc"
+void make_header(lv_obj_t* root){
+ lv_obj_t* top=panel(root,0,0,800,53,0x071827);
+ lv_obj_set_style_radius(top,0,0);
+ label(top,14,12,230,"VALVER",TEXT,true);
+ label(top,137,17,330,"SMART DISPENSER  |  PANTALLA 7 PULGADAS",SUB);
+ touchTop=label(top,591,18,205,"TACTIL: comprobando",CYAN);
+ lv_obj_t* side=panel(root,0,55,130,425,PANEL);
+ lv_obj_set_style_radius(side,0,0);
+ navBtn[0]=btn(side,6,9,118,51,"CONTROL Z",BLUE,NAV0);
+ navBtn[1]=btn(side,6,69,118,51,"CALIBRAR",BLUE,NAV1);
+ navBtn[2]=btn(side,6,129,118,51,"BUSCAR ORIGEN",BLUE,NAV2);
+ navBtn[3]=btn(side,6,189,118,51,"DIAGNOSTICO",BLUE,NAV3);
+ label(side,9,300,113,"ESP32 PANTALLA",CYAN);
+ label(side,9,328,113,"MOTORES:",SUB);
+ driverText=label(side,9,350,113,"SIN ENLACE",SUB);
+ lv_obj_t* toolbar=panel(root,134,55,666,48,BASE);
+ lv_obj_set_style_radius(toolbar,0,0);
+ btn(toolbar,8,4,133,38,"VERIFICAR ENLACE",BLUE,CONNECT);
+ connectionText=label(toolbar,150,14,291,"I2C: SIN ENLACE",SUB);
+ btn(toolbar,520,4,137,38,"PARADA",RED,STOP);
+ lv_obj_t* foot=panel(root,134,442,666,38,BASE);
+ lv_obj_set_style_radius(foot,0,0);
+ notice=label(foot,10,10,642,"Conectando controlador de motores...",CYAN);
+}
+void make_home(){
+ lv_obj_t* p=pages[0];
+ for(uint8_t i=0;i<2;i++){
+  const int x=(i==0)?5:336;
+  lv_obj_t* card=panel(p,x,4,325,229,CELL);
+  label(card,12,11,288,i==0?"Z1  |  CONDUCTIVO":"Z2  |  ESTRUCTURAL",TEXT,true);
+  axisText[i]=label(card,12,41,287,"TMC2209: verificando",SUB);
+  btn(card,12,72,146,48,"SUBIR",BLUE,i==0?Z1_UP:Z2_UP);
+  btn(card,168,72,145,48,"BAJAR",BLUE,i==0?Z1_DOWN:Z2_DOWN);
+  btn(card,12,132,146,48,"IR A REPOSO",GREEN,i==0?Z1_REST:Z2_REST);
+  btn(card,168,132,145,48,"DISPENSACION",GREEN,i==0?Z1_DISP:Z2_DISP);
+  positionText[i]=label(card,12,197,300,"Posicion: sin referencia",SUB);
+ }
+ lv_obj_t* speed=panel(p,5,244,656,84,PANEL);
+ speedLabel=label(speed,14,6,600,"Velocidad: 1600 micropasos/s",TEXT);
+ lv_obj_t* sl=lv_slider_create(speed);
+ lv_obj_set_pos(sl,19,43);
+ lv_obj_set_size(sl,612,12);
+ lv_slider_set_range(sl,80,8000);
+ lv_slider_set_value(sl,1600,LV_ANIM_OFF);
+ lv_obj_add_event_cb(sl,on_speed,LV_EVENT_VALUE_CHANGED,nullptr);
+ lv_obj_add_event_cb(sl,on_speed,LV_EVENT_RELEASED,nullptr);
+}
+void make_calibration(){
+ lv_obj_t* p=pages[1];
+ wizardPick=panel(p,5,4,655,330,PANEL);
+ label(wizardPick,16,16,610,"CALIBRAR ALTURAS",CYAN,true);
+ label(wizardPick,16,61,620,"Selecciona la aguja. Cada una guarda sus propias alturas.",SUB);
+ wizardChoice[0]=btn(wizardPick,16,118,304,75,"CALIBRAR Z1",GREEN,PICK_Z1);
+ wizardChoice[1]=btn(wizardPick,335,118,304,75,"CALIBRAR Z2",BLUE,PICK_Z2);
+ label(wizardPick,16,238,610,"1. Dispensacion    2. Reposo    3. Guardado automatico",TEXT);
+ label(wizardPick,16,278,610,"Sin copiar valores entre motores.",SUB);
+
+ wizardWork=panel(p,5,4,655,330,PANEL);
+ wizardStepLabel=label(wizardWork,16,13,450,"Z1 - DISPENSACION",CYAN,true);
+ wizardProgress=label(wizardWork,481,17,160,"PASO 1 DE 2",SUB);
+ wizardHelp=label(wizardWork,16,64,625,"Situa la aguja y pulsa OK.",TEXT);
+ btn(wizardWork,16,140,304,59,"SUBIR",BLUE,WIZ_UP);
+ btn(wizardWork,335,140,304,59,"BAJAR",BLUE,WIZ_DOWN);
+ btn(wizardWork,16,223,190,57,"CANCELAR",RED,WIZ_CANCEL);
+ btn(wizardWork,221,223,418,57,"OK - GUARDAR POSICION",GREEN,WIZ_OK);
+
+ wizardDone=panel(p,5,4,655,330,PANEL);
+ wizardDoneTitle=label(wizardDone,20,30,618,"Z1 CALIBRADO",CYAN,true);
+ wizardDoneInfo=label(wizardDone,20,107,615,"Alturas guardadas.",TEXT);
+ label(wizardDone,20,174,614,"CONTROL Z muestra las alturas de cada eje.",SUB);
+ wizardNextButton=btn(wizardDone,20,217,294,61,"CALIBRAR Z2",BLUE,WIZ_NEXT);
+ btn(wizardDone,331,217,304,61,"CONTROL Z",GREEN,WIZ_HOME);
+ wizard_render();
+}
+ BAJAR.\n"
+          "Soltar y pulsar OK para guardar.",axis,place);
+ lv_label_set_text(wizardStepLabel,title);
+ lv_label_set_text(wizardProgress,prog);
+ lv_label_set_text(wizardHelp,help);
+}
+
 #include "hmi_i2c_ui.inc"
 void make_header(lv_obj_t* root){
  lv_obj_t* top=panel(root,0,0,800,53,0x071827);
