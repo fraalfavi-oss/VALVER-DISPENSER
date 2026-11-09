@@ -146,7 +146,11 @@ void on_action(lv_event_t* e){
     // Both independent calibrations, known origins and holding torque are
     // mandatory before any coordinated dispense request.
     if((motorFlags&0x3C)!=0x3C || (motorMarks&0x0F)!=0x0F){
-      show_notice("Calibrar y referenciar Z1/Z2 antes de dispensar");return;
+      if((motorMarks&0x0F)==0x0F)
+        show_notice("Alturas guardadas; posicion sin referencia fiable. Recalibrar.");
+      else
+        show_notice("Falta guardar dispensacion/reposo en Z1 o Z2");
+      return;
     }
     pairChosen=ax;pairOther=ax==1?2:1;pairPhase=1;
     pairPhaseStarted=millis();
@@ -156,7 +160,11 @@ void on_action(lv_event_t* e){
     return;
   }
   if(!(motorFlags&(ax==1?16:32)) || !(motorFlags&(ax==1?4:8))){
-    show_notice("Eje sin origen/retencion: calibrar primero");return;
+    if((motorMarks&(ax==1?3:12))==(ax==1?3:12))
+      show_notice("Alturas guardadas, pero referencia perdida: recalibrar eje");
+    else
+      show_notice("Guardar DISPENSACION y REPOSO de este eje");
+    return;
   }
   if(!sendMotor(13,ax,kind,0,true))show_notice("No se pudo solicitar reposo");
   else show_notice("Desplazamiento a reposo solicitado");
