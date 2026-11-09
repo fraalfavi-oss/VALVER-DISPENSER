@@ -551,9 +551,14 @@ void dispatch(const char* data) {
      replyError(id,"AUTO_DISTANCE_EXCEEDS_32000_MICROSTEPS");return;
    }
    TMC2209Stepper &d=stallDriver((uint8_t)axis);
-   if(!probeStall((uint8_t)axis)||d.drv_err()||d.toff()==0||
-      d.rms_current()>HOLD_RMS_MAX_MA){
-     abortTrial();replyError(id,"AUTO_DRIVER_NOT_READY");return;
+   // A single failed UART probe while already holding is not proof of
+   // lost motor position. Reject the new move without disabling both axes.
+   // A positive driver fault, however, still triggers the real safety stop.
+   if(!probeStall((uint8_t)axis)){
+     replyError(id,"AUTO_UART_RETRY");return;
+   }
+   if(d.drv_err()||d.toff()==0||d.rms_current()>HOLD_RMS_MAX_MA){
+     abortTrial();replyError(id,"AUTO_DRIVER_FAULT");return;
    }
    const bool up=distance>0;
    digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
