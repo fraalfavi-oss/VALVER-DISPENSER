@@ -28,6 +28,10 @@ uint32_t hmiDuplicateStarts=0;
 // No motor I/O is performed in this callback.
 volatile uint32_t hmiIdleBeatRxAt=0;
 uint32_t hmiIdleBeatAppliedAt=0;
+// Automatic travel deadman uses the same direct-receive path: no queue
+// scheduling jitter and no duplicate status ACKs from a heartbeat.
+volatile uint32_t hmiMotionBeatRxAt=0;
+uint32_t hmiMotionBeatAppliedAt=0;
 void hmiRx(int /*count*/) {
   uint8_t data[9]={0}; uint8_t len=0;
   while(Wire.available()) {
@@ -38,8 +42,13 @@ void hmiRx(int /*count*/) {
   if(len!=sizeof(data)||data[0]!=0x56||data[1]!=HMI_VERSION)return;
   uint8_t crc=0; for(uint8_t i=0;i<8;i++)crc^=data[i];
   if(crc!=data[8])return;
-  if((data[3]&0x7F)==7) {
+  const uint8_t heartbeatOp=(uint8_t)(data[3]&0x7F);
+  if(heartbeatOp==7) {
     hmiIdleBeatRxAt=millis();
+    return;
+  }
+  if(heartbeatOp==6) {
+    hmiMotionBeatRxAt=millis();
     return;
   }
   portENTER_CRITICAL(&hmiMux);
@@ -183,6 +192,12 @@ void hmiExecute(const HmiWireCommand& request) {
   // No Serial.printf here: USB logging must not delay the stepper deadman.
 }
 void hmiService() {
+  const uint32_t latestMotion=hmiMotionBeatRxAt;
+  if(latestMotion!=hmiMotionBeatAppliedAt){
+    hmiMotionBeatAppliedAt=latestMotion;
+    if(trial.active && (uint32_t)(millis()-latestMotion)<250UL)
+      trial.heartbeat=latestMotion;
+  }
   // A valid dedicated I2C idle heartbeat keeps the session reference
   // only while BOTH the screen and motor controller remain powered.
   // A lost heartbeat still reaches the existing HOLD_IDLE_TIMEOUT_MS
