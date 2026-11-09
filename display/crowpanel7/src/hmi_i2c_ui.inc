@@ -116,11 +116,17 @@ static void heightSaved(){
  if(wizardRunning && axis==wizardMode+1 &&
     kind==(wizardStep==0?2:1) && wizardStep<2){
    wizardStep++;
-   wizard_render();
-   if(wizardStep>=2)
-      show_notice(axis==1?"Z1 guardado. Pulsa CALIBRAR Z2.":"Z2 guardado. Ir a CONTROL Z.");
-   else
-      show_notice(axis==1?"Z1 dispensacion guardada. Ahora REPOSO.":"Z2 dispensacion guardada. Ahora REPOSO.");
+   if(wizardStep>=2){
+      // Save completed on COM5: return immediately to the Z1/Z2 menu.
+      // Never force the user into another calibration or CONTROL Z.
+      wizardRunning=false;
+      wizardStep=0;
+      wizard_render();
+      show_notice(axis==1?"Z1: alturas guardadas.":"Z2: alturas guardadas.");
+   }else{
+      wizard_render();
+      show_notice(axis==1?"Z1: dispensacion guardada.":"Z2: dispensacion guardada.");
+   }
  }
 }
 void on_action(lv_event_t* e){
@@ -347,20 +353,12 @@ static void pollMotors(){
   for(int i=0;i<2;i++){
    if(axisText[i])lv_label_set_text(axisText[i],
       (motorFlags&(i?128:64))?"TMC2209: UART OK":"TMC2209: ESPERANDO VM/UART");
-   if(positionText[i])lv_label_set_text_fmt(positionText[i],
-      "Z%d P:%ld  R:%ld\nD:%ld  | %s",i+1,
-      (long)zPos[i],(long)zRest[i],(long)zDisp[i],
-      (motorFlags&(i?32:16))?"REFERENCIADO":"SIN ORIGEN");
-   if(restButtonText[i]){
-      if(motorMarks&(i?4:1))
-        lv_label_set_text_fmt(restButtonText[i],"REPOSO\n%ld",(long)zRest[i]);
-      else lv_label_set_text(restButtonText[i],"REPOSO\n--");
-   }
-   if(dispButtonText[i]){
-      if(motorMarks&(i?8:2))
-        lv_label_set_text_fmt(dispButtonText[i],"DISPENSACION\n%ld",(long)zDisp[i]);
-      else lv_label_set_text(dispButtonText[i],"DISPENSACION\n--");
-   }
+   // Keep the control surface clean. Position counters remain inside
+   // controller telemetry for motion safety, never on REST/DISP buttons.
+   if(positionText[i])
+      lv_label_set_text(positionText[i],
+        (motorMarks&(i?12:3))==(i?12:3)
+            ?"ALTURAS GUARDADAS":"ALTURAS POR CALIBRAR");
   }
  }
  if(!wasOnline && (motorFlags&0xC0)!=0xC0)
