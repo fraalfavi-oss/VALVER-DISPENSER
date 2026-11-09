@@ -318,6 +318,19 @@ void abortTrial(){
  digitalWrite(Z1_DIR,LOW);digitalWrite(Z2_DIR,LOW);
  trial.active=false;trial.high=false;armedAxis=0;armedMa=0;armedAt=0;
 }
+// If preparation fails before STEP pulses, release only the selected Z.
+// The other calibrated Z retains its holding torque and its reference.
+void releaseStationaryAxis(uint8_t axis){
+ if(axis<1||axis>2)return;
+ if(trial.active){abortTrial();return;}
+ digitalWrite(axis==1?Z1_EN:Z2_EN,HIGH);
+ digitalWrite(axis==1?Z1_STEP:Z2_STEP,LOW);
+ holdingAxis[axis]=false;
+ heights[axis].referenced=false;
+ heights[axis].restFresh=false;
+ heights[axis].dispenseFresh=false;
+ armedAxis=0;armedMa=0;armedAt=0;
+}
 // Normal button release: no STEP pulses, keep driver EN low and IHOLD active.
 void parkTrial(){
  if(!trial.active)return;
@@ -530,10 +543,17 @@ void dispatch(const char* data) {
       axis<1||axis>2||confirm!=1){replyError(id,"INVALID_PAIR_REQUEST");return;}
    if(trial.active||paired.active){replyError(id,"BUSY_MOTOR_ACTIVE");return;}
    const uint8_t selected=(uint8_t)axis,other=selected==1?2:1;
-   if(!heights[1].referenced||!heights[2].referenced||
-      !holdingAxis[1]||!holdingAxis[2]||
-      !heights[selected].dispenseSet||!heights[other].restSet){
-      replyError(id,"PAIR_REFERENCE_OR_HOLD_MISSING");return;
+   // All heights are NVS-persistent. Physical reference is session-only.
+   if(!heights[selected].dispenseSet||!heights[other].restSet){
+      replyError(id,"ALTURA_NO_GUARD");return;
+   }
+   if(!heights[1].referenced||!heights[2].referenced){
+      replyError(id,!heights[1].referenced?"Z1_REF_PERDIDA":"Z2_REF_PERDIDA");
+      return;
+   }
+   if(!holdingAxis[1]||!holdingAxis[2]){
+      replyError(id,!holdingAxis[1]?"Z1_SIN_RETENCION":"Z2_SIN_RETENCION");
+      return;
    }
    paired.active=true;paired.complete=false;paired.failed=false;
    paired.stage=1;paired.chosen=selected;paired.opposite=other;
@@ -686,7 +706,10 @@ void dispatch(const char* data) {
       axis<1||axis>2||confirm!=1){replyError(id,"MOTOR_ENABLE_CONFIRMATION_REQUIRED");return;}
    digitalWrite(axis==1?Z1_EN:Z2_EN,HIGH);
    holdingAxis[axis]=false;
-   if(!probeStall((uint8_t)axis)){abortTrial();replyError(id,"UART_NOT_READY_NO_MOTION");return;}
+   if(!probeStall((uint8_t)axis)){
+     releaseStationaryAxis((uint8_t)axis);
+     replyError(id,"UART_NOT_READY_NO_MOTION");return;
+   }
    TMC2209Stepper &d=stallDriver((uint8_t)axis);
    const uint8_t before=d.IFCNT();
    d.pdn_disable(true);
@@ -703,7 +726,8 @@ void dispatch(const char* data) {
    if(!probeStall((uint8_t)axis)||after==before||!d.pdn_disable()||d.I_scale_analog()||
       !d.mstep_reg_select()||d.toff()!=3||d.microsteps()!=16||
       d.rms_current()>HOLD_RMS_MAX_MA||d.irun()==0){
-     abortTrial();replyError(id,"UART_CURRENT_READBACK_FAILED");return;
+     releaseStationaryAxis((uint8_t)axis);
+     replyError(id,"UART_CURRENT_READBACK_FAILED");return;
    }
    armedAxis=(uint8_t)axis;armedMa=target;armedAt=millis();
    controllerReply(R"json({"id":%lu,"status":"OK","test_prepared":true,"axis":%lu,"rms_target_ma":%u,"hold_max_ms":%lu,"drivers_enabled":false})json" "\n",id,axis,target,(unsigned long)HOLD_MAX_MS);
@@ -712,9 +736,13 @@ void dispatch(const char* data) {
    if(!readUIntField(data,"axis",axis)||!readUIntField(data,"up",up)||axis<1||axis>2||up>1){replyError(id,"BAD_TEST_AXIS");return;}
    if(trial.active){replyError(id,"TEST_RUNNING");return;}
    if(!armedAt||armedAxis!=axis||(uint32_t)(millis()-armedAt)>10000){
-     abortTrial();replyError(id,"PREPARE_EXPIRED");return;
+     releaseStationaryAxis((uint8_t)axis);
+     replyError(id,"PREPARE_EXPIRED");return;
    }
-   if(!probeStall((uint8_t)axis)){abortTrial();replyError(id,"UART_LOST_NO_MOTION");return;}
+   if(!probeStall((uint8_t)axis)){
+     releaseStationaryAxis((uint8_t)axis);
+     replyError(id,"UART_LOST_NO_MOTION");return;
+   }
    TMC2209Stepper &d=stallDriver((uint8_t)axis);
    if(d.drv_err()||d.toff()!=3||d.rms_current()>HOLD_RMS_MAX_MA){abortTrial();replyError(id,"DRIVER_FAULT_NO_MOTION");return;}
    // Preserve opposite driver's holding torque.
