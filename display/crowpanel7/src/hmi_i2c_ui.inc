@@ -299,6 +299,31 @@ static void pollMotors(){
    }
   }
  }
+ // A delayed I2C ACK is not a motor fault. The controller has an
+ // independent running/axis/automatic status and target positions. If the
+ // exact coordinated move is already running (or was completed), accept
+ // that evidence instead of disabling both motors and losing calibration.
+ if(waitingOp==13 && (pairPhase==1||pairPhase==3)){
+   const uint8_t expectedAxis=pairPhase==1?pairOther:pairChosen;
+   const int32_t target=(pairPhase==1)?zRest[expectedAxis-1]:zDisp[expectedAxis-1];
+   const bool confirmedRunning=(motorFlags&3)==3 && rx[7]==expectedAxis;
+   const bool confirmedArrived=!(motorFlags&1) &&
+      (motorFlags&(expectedAxis==1?4:8)) &&
+      (motorFlags&(expectedAxis==1?16:32)) &&
+      zPos[expectedAxis-1]==target;
+   if(confirmedRunning||confirmedArrived){
+     waitingOp=0;
+     autoRunning=confirmedRunning;
+     pairPhase=(pairPhase==1)?2:4;
+     pairPhaseStarted=now;
+     Serial.printf("[VALVER I2C] paired axis=%u verified by telemetry (running=%u)\\n",
+       (unsigned)expectedAxis,(unsigned)confirmedRunning);
+   }
+ }
+ // The simple REPOSO button also must not lose a valid running confirmation.
+ if(waitingOp==13 && pairPhase==0 && (motorFlags&3)==3){
+   waitingOp=0;autoRunning=true;
+ }
  // SAVE_Z_HEIGHT is already durable before the motor controller updates
  // its I2C report. Reconcile a delayed ACK directly from stored NVS-backed
  // heights. No extra operator step or duplicate save is needed.
@@ -399,18 +424,40 @@ static void pollMotors(){
  // that would invalidate the physical Z reference mid-calibration.
  const bool configCommand=(waitingOp==8||waitingOp==9||
       waitingOp==10||waitingOp==11||waitingOp==12);
- const uint32_t ackTimeoutMs=configCommand?6500UL:850UL;
+ const bool automaticStartCommand=(waitingOp==13);
+ const uint32_t ackTimeoutMs=configCommand?6500UL:
+                               automaticStartCommand?1800UL:850UL;
  if(waitingOp && (uint32_t)(now-waitingSince)>ackTimeoutMs){
   const uint8_t timedOutOp=waitingOp,timedOutSeq=waitingSeq;
   waitingOp=0;
   if(configCommand){
-    // Never advance the calibration wizard without confirmation.
-    // Operator may retry the current OK/save step once the link is healthy.
     char msg[120];
     snprintf(msg,sizeof(msg),
      "Altura no guardada op=%u seq=%u; pulsa OK de nuevo",
      (unsigned)timedOutOp,(unsigned)timedOutSeq);
     show_notice(msg);
+  }else if(timedOutOp==13 && motorOnline){
+    // Still receiving fresh live telemetry. A late ACK is NOT an
+    // emergency stop. If the axis is actually travelling, its existing
+    // controller watchdog remains armed and the UI continues its heartbeat.
+    // If no automatic travel is reported, cancel the sequence (no launch).
+    if((motorFlags&3)==3){
+      autoRunning=true;
+      if(pairPhase==1||pairPhase==3){
+        const uint8_t axis=pairPhase==1?pairOther:pairChosen;
+        if(rx[7]==axis){
+          pairPhase=(pairPhase==1)?2:4;
+          pairPhaseStarted=now;
+        }else{
+          // Wrong axis is moving: halt immediately.
+          pairPhase=0;autoRunning=false;sendMotor(2);
+          show_notice("Eje inesperado: PARADA");
+        }
+      }
+    }else{
+      pairPhase=0;autoRunning=false;
+      show_notice("Desplazamiento no iniciado; conservar referencias");
+    }
   }else{
     held=false;moving=false;autoRunning=false;holdOwned=false;startPending=false;pairPhase=0;
     sendMotor(2);
