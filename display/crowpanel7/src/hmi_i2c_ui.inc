@@ -316,8 +316,10 @@ static void pollMotors(){
   for(int i=0;i<2;i++){
    if(axisText[i])lv_label_set_text(axisText[i],
       (motorFlags&(i?128:64))?"TMC2209: UART OK":"TMC2209: ESPERANDO VM/UART");
-   if(positionText[i])lv_label_set_text_fmt(positionText[i],"Z%d: %ld | %s",i+1,
-      (long)readInt32(rx+8+4*i),(motorFlags&(i?32:16))?"REFERENCIADO":"SIN ORIGEN");
+   if(positionText[i])lv_label_set_text_fmt(positionText[i],
+      "Z%d P:%ld  R:%ld\nD:%ld  | %s",i+1,
+      (long)zPos[i],(long)zRest[i],(long)zDisp[i],
+      (motorFlags&(i?32:16))?"REFERENCIADO":"SIN ORIGEN");
   }
  }
  if(!wasOnline && (motorFlags&0xC0)!=0xC0)
