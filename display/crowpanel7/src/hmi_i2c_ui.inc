@@ -148,21 +148,22 @@ void on_action(lv_event_t* e){
   if(!motorOnline || waitingOp || pairPhase || held || (motorFlags&1)){
     show_notice("Controlador ocupado o sin enlace");return;
   }
-  if(kind==2){
-    // HMI dispatches directly: COM5 alone validates current reference,
-    // motor retention and the other axis resting before moving needles.
-    // No duplicate HMI-side reference lockouts.
-    pairChosen=ax;pairOther=ax==1?2:1;pairPhase=1;
-    pairPhaseStarted=millis();
-    if(!sendMotor(13,pairOther,1,0,true)){
-      pairPhase=0;show_notice("Fallo de envio al controlador");
-    }else show_notice("Cambio solicitado: Z opuesta a reposo");
-    return;
+  // Each of the four buttons selects one of TWO physical states:
+  // Z1 DISP + Z2 REST  or  Z1 REST + Z2 DISP.
+  // A requested REST on one needle means DISPENSE on its opposite.
+  // Always retract the non-dispensing needle FIRST, then advance the
+  // dispensing needle. Never run both vertical moves simultaneously.
+  pairChosen=(kind==2)?ax:(uint8_t)(ax==1?2:1);
+  pairOther=(uint8_t)(pairChosen==1?2:1);
+  pairPhase=1;
+  pairPhaseStarted=millis();
+  if(!sendMotor(13,pairOther,1,0,true)){
+    pairPhase=0;
+    show_notice("No se pudo transmitir el cambio de agujas");
+  }else{
+    show_notice(pairChosen==1?"Z1 dispensacion / Z2 reposo":
+                            "Z1 reposo / Z2 dispensacion");
   }
-  // Single axis REST: no redundant local reference gate. Controller
-  // still checks physical position validity before accepting motion.
-  if(!sendMotor(13,ax,kind,0,true))show_notice("Fallo de envio al controlador");
-  else show_notice("Reposo solicitado");
   return;
  }
  if(a==PICK_Z1||a==PICK_Z2||a==WIZ_NEXT||a==WIZ_RESTART||a==BEGIN){
