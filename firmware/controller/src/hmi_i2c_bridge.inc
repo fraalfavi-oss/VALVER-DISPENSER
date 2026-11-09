@@ -59,7 +59,12 @@ void hmiI32(uint8_t* dest,int32_t number) {
 }
 void hmiRefresh() {
   uint8_t output[32]={0x56,HMI_VERSION};
-  output[2]=hmiAckSeq; output[3]=hmiAckResult;output[4]=hmiError;
+  output[2]=hmiAckSeq; output[3]=hmiAckResult;
+  // In addition to the last command error (bit 0), expose session-fresh
+  // calibration markers so HMI can safely reconcile delayed NVS replies.
+  output[4]=(hmiError&1)|(heights[1].restFresh?2:0)|
+       (heights[1].dispenseFresh?4:0)|(heights[2].restFresh?8:0)|
+       (heights[2].dispenseFresh?16:0);
   output[5]=(trial.active?1:0)|(trial.automatic?2:0)|
       (holdingAxis[1]?4:0)|(holdingAxis[2]?8:0)|
       (heights[1].referenced?16:0)|(heights[2].referenced?32:0)|
