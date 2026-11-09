@@ -20,6 +20,7 @@ static bool startUnconfirmedNotice=false;
 // Never command both needles into the work zone at the same time.
 static uint8_t pairPhase=0,pairChosen=0,pairOther=0;
 static uint32_t pairPhaseStarted=0;
+static bool pairVerifiedAccepted=false;
 static bool wizardSwitchingAxis=false;
 static uint8_t pendingSaveAxis=0,pendingSaveKind=0;
 static int32_t pendingSavePosition=0;
@@ -155,15 +156,14 @@ void on_action(lv_event_t* e){
   // dispensing needle. Never run both vertical moves simultaneously.
   pairChosen=(kind==2)?ax:(uint8_t)(ax==1?2:1);
   pairOther=(uint8_t)(pairChosen==1?2:1);
-  pairPhase=1;
-  pairPhaseStarted=millis();
-  if(!sendMotor(13,pairOther,1,0,true)){
+  // The motor controller now executes BOTH Z stages as ONE validated
+  // transaction, avoiding a second I2C ACK and associated race condition.
+  pairPhase=1;pairVerifiedAccepted=false;pairPhaseStarted=millis();
+  if(!sendMotor(15,pairChosen,0,0,true)){
     pairPhase=0;
     show_notice("No se pudo transmitir el cambio de agujas");
-  }else{
-    show_notice(pairChosen==1?"Z1 dispensacion / Z2 reposo":
-                            "Z1 reposo / Z2 dispensacion");
-  }
+  }else show_notice(pairChosen==1?"Z1 dispensacion / Z2 reposo":
+                                    "Z1 reposo / Z2 dispensacion");
   return;
  }
  if(a==PICK_Z1||a==PICK_Z2||a==WIZ_NEXT||a==WIZ_RESTART||a==BEGIN){
@@ -285,40 +285,22 @@ static void pollMotors(){
    else if(op==10){
      heightSaved();
    }else if(op==5){moving=false;show_notice("Movimiento detenido, eje retenido");}
+   else if(op==15){
+      pairVerifiedAccepted=true;
+      autoRunning=true;
+      show_notice("Cambio de agujas iniciado por COM5");
+   }
    else if(op==13){
       autoRunning=(motorFlags&1)!=0;
       holdOwned=true;
-      if(pairPhase==1){pairPhase=2;pairPhaseStarted=now;}
-      else if(pairPhase==3){pairPhase=4;pairPhaseStarted=now;}
-      else show_notice("Desplazamiento autorizado");
+      show_notice("Desplazamiento autorizado");
    }
   }
  }
- // A delayed I2C ACK is not a motor fault. The controller has an
- // independent running/axis/automatic status and target positions. If the
- // exact coordinated move is already running (or was completed), accept
- // that evidence instead of disabling both motors and losing calibration.
- if(waitingOp==13 && (pairPhase==1||pairPhase==3)){
-   const uint8_t expectedAxis=pairPhase==1?pairOther:pairChosen;
-   const int32_t target=(pairPhase==1)?zRest[expectedAxis-1]:zDisp[expectedAxis-1];
-   const bool confirmedRunning=(motorFlags&3)==3 && rx[7]==expectedAxis;
-   const bool confirmedArrived=!(motorFlags&1) &&
-      (motorFlags&(expectedAxis==1?4:8)) &&
-      (motorFlags&(expectedAxis==1?16:32)) &&
-      zPos[expectedAxis-1]==target;
-   if(confirmedRunning||confirmedArrived){
-     waitingOp=0;
-     autoRunning=confirmedRunning;
-     pairPhase=(pairPhase==1)?2:4;
-     pairPhaseStarted=now;
-     Serial.printf("[VALVER I2C] paired axis=%u verified by telemetry (running=%u)\n",
-       (unsigned)expectedAxis,(unsigned)confirmedRunning);
-   }
- }
- // The simple REPOSO button also must not lose a valid running confirmation.
- if(waitingOp==13 && pairPhase==0 && (motorFlags&3)==3){
-   waitingOp=0;autoRunning=true;
- }
+ // One controller-owned pair request replaces both old UI phases.
+ if(pairPhase && (motorFresh&32))pairVerifiedAccepted=true;
+ if(waitingOp==15 && pairVerifiedAccepted && (motorFresh&32))
+   waitingOp=0; // live pair execution confirms a delayed start ACK
  // SAVE_Z_HEIGHT is already durable before the motor controller updates
  // its I2C report. Reconcile a delayed ACK directly from stored NVS-backed
  // heights. No extra operator step or duplicate save is needed.
@@ -332,42 +314,21 @@ static void pollMotors(){
      heightSaved();
    }
  }
- // A coordinated dispensing action is ONE touch command, but two safe
- // consecutive moves: first retract the other nozzle completely.
- if(pairPhase==2 || pairPhase==4){
-   const uint8_t ax=(pairPhase==2)?pairOther:pairChosen;
-   const bool referenced=(motorFlags&(ax==1?16:32))!=0;
-   const bool holding=(motorFlags&(ax==1?4:8))!=0;
-   const int32_t target=(pairPhase==2)?zRest[ax-1]:zDisp[ax-1];
-   if(!(motorFlags&1)){
-      if(referenced && holding && zPos[ax-1]==target){
-        if(pairPhase==2){
-          pairPhase=3;pairPhaseStarted=now;
-          if(!sendMotor(13,pairChosen,2,0,true)){
-             pairPhase=0;autoRunning=false;
-             show_notice("Fallo al enviar DISPENSACION: comprobar enlace");
-          }else show_notice("Aguja contraria en reposo. Bajando seleccionada.");
-        }else{
-          pairPhase=0;autoRunning=false;
-          show_notice("Cambio completado: una dispensando, otra en reposo");
-        }
-      }else if((uint32_t)(now-pairPhaseStarted)>450UL){
-        // Do not advance to the next needle on an unconfirmed position.
-        // Also do not reset the other axis merely because a stale frame
-        // arrived immediately after the START acknowledgement.
-        pairPhase=0;autoRunning=false;
-        show_notice("Cambio no completado: comprobar posicion en COM5");
-      }
-   }else if(!(motorFlags&2) && (uint32_t)(now-pairPhaseStarted)>450UL){
-     pairPhase=0;autoRunning=false;
-     sendMotor(2);
-     show_notice("Movimiento inesperado: controlador detenido");
-   }
+ // COM5 owns both moves and exposes explicit ACTIVE/DONE/FAILED bits.
+ // The UI must never invent completion or start the second axis itself.
+ if(pairPhase && pairVerifiedAccepted && (motorFresh&64)){
+   pairPhase=0;autoRunning=false;
+   if(waitingOp==15)waitingOp=0;
+   show_notice("Cambio terminado: Z1/Z2 en alturas guardadas");
+ }else if(pairPhase && pairVerifiedAccepted && (motorFresh&128)){
+   pairPhase=0;autoRunning=false;
+   if(waitingOp==15)waitingOp=0;
+   show_notice("Cambio interrumpido en COM5: comprobar posicion");
  }
  if(pairPhase && (uint32_t)(now-pairPhaseStarted)>65000UL){
    pairPhase=0;autoRunning=false;
-   sendMotor(2);
-   show_notice("Tiempo de cambio excedido: parada del controlador");
+   if(waitingOp==15)waitingOp=0;
+   show_notice("Sin estado final de COM5; revisar controlador");
  }
  if(now-lastStatusDraw>=350){
   lastStatusDraw=now;
@@ -422,7 +383,7 @@ static void pollMotors(){
  // that would invalidate the physical Z reference mid-calibration.
  const bool configCommand=(waitingOp==8||waitingOp==9||
       waitingOp==10||waitingOp==11||waitingOp==12);
- const bool automaticStartCommand=(waitingOp==13);
+ const bool automaticStartCommand=(waitingOp==13||waitingOp==15);
  const uint32_t ackTimeoutMs=configCommand?6500UL:
                                automaticStartCommand?1800UL:850UL;
  if(waitingOp && (uint32_t)(now-waitingSince)>ackTimeoutMs){
@@ -434,6 +395,15 @@ static void pollMotors(){
      "Altura no guardada op=%u seq=%u; pulsa OK de nuevo",
      (unsigned)timedOutOp,(unsigned)timedOutSeq);
     show_notice(msg);
+  }else if(timedOutOp==15 && motorOnline){
+    // No second start command and no force-disable on a delayed ACK.
+    // COM5 owns the sequence and its own watchdog.
+    if((motorFresh&32)||(motorFresh&64)){
+       pairVerifiedAccepted=true;autoRunning=(motorFresh&32)!=0;
+    }else{
+       pairPhase=0;autoRunning=false;
+       show_notice("COM5 no acepto el cambio: revisar diagnostico");
+    }
   }else if(timedOutOp==13 && motorOnline){
     // Still receiving fresh live telemetry. A late ACK is NOT an
     // emergency stop. If the axis is actually travelling, its existing
@@ -474,7 +444,7 @@ static void pollMotors(){
  // Feed idle hold *independently* while awaiting movement, because both
  // calibrated axes can still be stationary during pair phase 1 or 3.
  static uint32_t lastMotionBeat=0,lastIdleBeat=0;
- const bool expectedAuto=(pairPhase!=0 || waitingOp==13 || autoRunning);
+ const bool expectedAuto=(pairPhase!=0 || waitingOp==13 || waitingOp==15 || autoRunning);
  // Manual pressing already feeds op=6 in its own original path above.
  // Avoid duplicate heartbeats congesting the I2C bus.
  if(expectedAuto){
