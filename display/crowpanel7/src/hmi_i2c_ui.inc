@@ -417,9 +417,15 @@ static void pollMotors(){
     show_notice(details);
   }
  }
- if((motorFlags&1)&&((autoRunning||pairPhase)&& (motorFlags&2)) &&
-    now-lastBeat>=90){sendMotor(6);lastBeat=now;}
- else if(holdOwned&&(motorFlags&12)&&now-lastBeat>=150){sendMotor(7);lastBeat=now;}
+ // Feed the motor-controller deadman using ACTUAL telemetry, not the
+ // screen's transient 'holdOwned' flag. This remains valid when navigating
+ // CALIBRAR -> CONTROL Z, after each save, and when calibrating the other
+ // axis. Never invent a reference: only COM5 can report it.
+ if((motorFlags&1) && (held||startPending||moving||autoRunning||pairPhase)){
+   if((uint32_t)(now-lastBeat)>=90){sendMotor(6);lastBeat=now;}
+ }else if(!(motorFlags&1) && (motorFlags&12)){
+   if((uint32_t)(now-lastBeat)>=150){sendMotor(7);lastBeat=now;}
+ }
  if(!(motorFlags&1)){
     if(moving && held && !startPending) {
       held=false;holdOwned=false;
