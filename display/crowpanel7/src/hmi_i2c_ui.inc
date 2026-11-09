@@ -143,9 +143,8 @@ void on_action(lv_event_t* e){
   return;
  }
  if(a==Z1_UP||a==Z1_DOWN||a==Z2_UP||a==Z2_DOWN||a==WIZ_UP||a==WIZ_DOWN)return;
- if(a==Z1_REST||a==Z1_DISP||a==Z2_REST||a==Z2_DISP){
-  const uint8_t ax=(a==Z1_REST||a==Z1_DISP)?1:2;
-  const uint8_t kind=(a==Z1_REST||a==Z2_REST)?1:2;
+ if(a==Z1_DISP||a==Z2_DISP){
+  const uint8_t ax=(a==Z1_DISP)?1:2;
   if(!motorOnline || waitingOp || pairPhase || held || (motorFlags&1)){
     show_notice("Controlador ocupado o sin enlace");return;
   }
@@ -154,7 +153,7 @@ void on_action(lv_event_t* e){
   // A requested REST on one needle means DISPENSE on its opposite.
   // Always retract the non-dispensing needle FIRST, then advance the
   // dispensing needle. Never run both vertical moves simultaneously.
-  pairChosen=(kind==2)?ax:(uint8_t)(ax==1?2:1);
+  pairChosen=ax;
   pairOther=(uint8_t)(pairChosen==1?2:1);
   // The motor controller now executes BOTH Z stages as ONE validated
   // transaction, avoiding a second I2C ACK and associated race condition.
