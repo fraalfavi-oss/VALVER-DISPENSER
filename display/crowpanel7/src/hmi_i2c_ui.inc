@@ -149,31 +149,20 @@ void on_action(lv_event_t* e){
     show_notice("Controlador ocupado o sin enlace");return;
   }
   if(kind==2){
-    // Both independent calibrations, known origins and holding torque are
-    // mandatory before any coordinated dispense request.
-    if((motorFlags&0x3C)!=0x3C || (motorMarks&0x0F)!=0x0F){
-      if((motorMarks&0x0F)==0x0F)
-        show_notice("Alturas guardadas; posicion sin referencia fiable. Recalibrar.");
-      else
-        show_notice("Falta guardar dispensacion/reposo en Z1 o Z2");
-      return;
-    }
+    // HMI dispatches directly: COM5 alone validates current reference,
+    // motor retention and the other axis resting before moving needles.
+    // No duplicate HMI-side reference lockouts.
     pairChosen=ax;pairOther=ax==1?2:1;pairPhase=1;
     pairPhaseStarted=millis();
     if(!sendMotor(13,pairOther,1,0,true)){
-      pairPhase=0;show_notice("No se pudo solicitar reposo opuesto");
-    }else show_notice("Control cruzado: retirando aguja contraria");
+      pairPhase=0;show_notice("Fallo de envio al controlador");
+    }else show_notice("Cambio solicitado: Z opuesta a reposo");
     return;
   }
-  if(!(motorFlags&(ax==1?16:32)) || !(motorFlags&(ax==1?4:8))){
-    if((motorMarks&(ax==1?3:12))==(ax==1?3:12))
-      show_notice("Alturas guardadas, pero referencia perdida: recalibrar eje");
-    else
-      show_notice("Guardar DISPENSACION y REPOSO de este eje");
-    return;
-  }
-  if(!sendMotor(13,ax,kind,0,true))show_notice("No se pudo solicitar reposo");
-  else show_notice("Desplazamiento a reposo solicitado");
+  // Single axis REST: no redundant local reference gate. Controller
+  // still checks physical position validity before accepting motion.
+  if(!sendMotor(13,ax,kind,0,true))show_notice("Fallo de envio al controlador");
+  else show_notice("Reposo solicitado");
   return;
  }
  if(a==PICK_Z1||a==PICK_Z2||a==WIZ_NEXT||a==WIZ_RESTART||a==BEGIN){
