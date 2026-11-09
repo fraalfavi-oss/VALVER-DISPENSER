@@ -285,6 +285,19 @@ static void pollMotors(){
    }
   }
  }
+ // SAVE_Z_HEIGHT is already durable before the motor controller updates
+ // its I2C report. Reconcile a delayed ACK directly from stored NVS-backed
+ // heights. No extra operator step or duplicate save is needed.
+ if(waitingOp==10 && pendingSaveAxis>=1 && pendingSaveAxis<=2){
+   const uint8_t ax=pendingSaveAxis,k=pendingSaveKind;
+   const uint8_t fresh=(ax==1?(k==1?2:4):(k==1?8:16));
+   const int32_t stored=(k==1?zRest[ax-1]:zDisp[ax-1]);
+   if((motorFresh&fresh) && stored==pendingSavePosition &&
+       (motorMarks&(ax==1?(k==1?1:2):(k==1?4:8)))){
+     waitingOp=0;
+     heightSaved();
+   }
+ }
  // A coordinated dispensing action is ONE touch command, but two safe
  // consecutive moves: first retract the other nozzle completely.
  if(pairPhase==2 || pairPhase==4){
@@ -389,7 +402,7 @@ static void pollMotors(){
     // Operator may retry the current OK/save step once the link is healthy.
     char msg[120];
     snprintf(msg,sizeof(msg),
-     "Sin confirmar guardado/copia op=%u seq=%u; repetir OK",
+     "Altura no guardada op=%u seq=%u; pulsa OK de nuevo",
      (unsigned)timedOutOp,(unsigned)timedOutSeq);
     show_notice(msg);
   }else{
